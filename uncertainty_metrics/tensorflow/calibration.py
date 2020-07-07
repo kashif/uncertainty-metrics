@@ -14,141 +14,460 @@
 # limitations under the License.
 
 # Lint as: python3
-"""Calibration metrics."""
+"""Calibration metrics for probabilistic predictions.
+
+Calibration is a property of probabilistic prediction models: a model is said to
+be well-calibrated if its predicted probabilities over a class of events match
+long-term frequencies over the sampling distribution.
+"""
+import numpy as np
+
 import tensorflow.compat.v2 as tf
+import tensorflow_probability as tfp
+tfd = tfp.distributions
 
 
-class ExpectedCalibrationError(tf.keras.metrics.Metric):
-  """Expected Calibration Error.
+def brier_decomposition(labels=None, logits=None, probabilities=None):
+  r"""Decompose the Brier score into uncertainty, resolution, and reliability.
 
-  Expected calibration error (Guo et al., 2017, Naeini et al., 2015) is a scalar
-  measure of calibration for probabilistic models. Calibration is defined as the
-  level to which the accuracy over a set of predicted decisions and true
-  outcomes associated with a given predicted probability level matches the
-  predicted probability. A perfectly calibrated model would be correct `p`% of
-  the time for all examples for which the predicted probability was `p`%, over
-  all values of `p`.
+  [Proper scoring rules][1] measure the quality of probabilistic predictions;
+  any proper scoring rule admits a [unique decomposition][2] as
+  `Score = Uncertainty - Resolution + Reliability`, where:
 
-  This metric can be computed as follows. First, cut up the probability space
-  interval [0, 1] into some number of bins. Then, for each example, store the
-  predicted class (based on a threshold of 0.5 in the binary case and the max
-  probability in the multiclass case), the predicted probability corresponding
-  to the predicted class, and the true label into the corresponding bin based on
-  the predicted probability. Then, for each bin, compute the average predicted
-  probability ("confidence"), the accuracy of the predicted classes, and the
-  absolute difference between the confidence and the accuracy ("calibration
-  error"). Expected calibration error can then be computed as a weighted average
-  calibration error over all bins, weighted based on the number of examples per
-  bin.
+  * `Uncertainty`, is a generalized entropy of the average predictive
+    distribution; it can both be positive or negative.
+  * `Resolution`, is a generalized variance of individual predictive
+    distributions; it is always non-negative.  Difference in predictions reveal
+    information, that is why a larger resolution improves the predictive score.
+  * `Reliability`, a measure of calibration of predictions against the true
+    frequency of events.  It is always non-negative and a lower value here
+    indicates better calibration.
 
-  Perfect calibration under this setup is when, for all bins, the average
-  predicted probability matches the accuracy, and thus the expected calibration
-  error equals zero. In the limit as the number of bins goes to infinity, the
-  predicted probability would be equal to the accuracy for all possible
-  probabilities.
+  This method estimates the above decomposition for the case of the Brier
+  scoring rule for discrete outcomes.  For this, we need to discretize the space
+  of probability distributions; we choose a simple partition of the space into
+  `nlabels` events: given a distribution `p` over `nlabels` outcomes, the index
+  `k` for which `p_k > p_i` for all `i != k` determines the discretization
+  outcome; that is, `p in M_k`, where `M_k` is the set of all distributions for
+  which `p_k` is the largest value among all probabilities.
 
-  References:
-    1. Guo, C., Pleiss, G., Sun, Y. & Weinberger, K. Q. On Calibration of Modern
-       Neural Networks. in International Conference on Machine Learning (ICML)
-       cs.LG, (Cornell University Library, 2017).
-    2. Naeini, M. P., Cooper, G. F. & Hauskrecht, M. Obtaining Well Calibrated
-       Probabilities Using Bayesian Binning. Proc Conf AAAI Artif Intell 2015,
-       2901-2907 (2015).
+  The estimation error of each component is O(k/n), where n is the number
+  of instances and k is the number of labels.  There may be an error of this
+  order when compared to `brier_score`.
+
+  #### References
+  [1]: Tilmann Gneiting, Adrian E. Raftery.
+       Strictly Proper Scoring Rules, Prediction, and Estimation.
+       Journal of the American Statistical Association, Vol. 102, 2007.
+       https://www.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf
+  [2]: Jochen Broecker.  Reliability, sufficiency, and the decomposition of
+       proper scores.
+       Quarterly Journal of the Royal Meteorological Society, Vol. 135, 2009.
+       https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1002/qj.456
+
+  Args:
+    labels: Tensor, (n,), with tf.int32 or tf.int64 elements containing ground
+      truth class labels in the range [0,nlabels].
+    logits: Tensor, (n, nlabels), with logits for n instances and nlabels.
+    probabilities: Tensor, (n, nlabels), with predictive probability
+      distribution (alternative to logits argument).
+
+  Returns:
+    uncertainty: Tensor, scalar, the uncertainty component of the
+      decomposition.
+    resolution: Tensor, scalar, the resolution component of the decomposition.
+    reliability: Tensor, scalar, the reliability component of the
+      decomposition.
   """
+  # if labels:
+  #   labels = tf.convert_to_tensor(labels)
+  # if logits:
+  #   logits = tf.cast(logits, None)
+  # if probabilities:
+  #   probabilities = tf.cast(probabilities, None)
+  if (logits is None) == (probabilities is None):
+    raise ValueError(
+        "brier_decomposition expects exactly one of logits or probabilities.")
+  if probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:
+      raise ValueError(
+          "brier_decomposition expects logits for binary classification of "
+          "shape (n, 2) for nlabels=2 but got ", logits.get_shape())
+    probabilities = tf.math.softmax(logits, axis=1)
+  if (probabilities.get_shape().as_list()[-1] == 1 or
+      len(probabilities.get_shape().as_list()) == 1):
+    raise ValueError(
+        "brier_decomposition expects probabilities for binary classification of"
+        " shape (n, 2) for nlabels=2 but got ", probabilities.get_shape())
+  _, nlabels = probabilities.shape  # Implicit rank check.
 
-  _setattr_tracking = False  # Automatic tracking breaks some unit tests
+  # Compute pbar, the average distribution
+  pred_class = tf.argmax(probabilities, axis=1, output_type=tf.int32)
+  confusion_matrix = tf.math.confusion_matrix(pred_class, labels, nlabels,
+                                              dtype=tf.float32)
+  dist_weights = tf.reduce_sum(confusion_matrix, axis=1)
+  dist_weights /= tf.reduce_sum(dist_weights)
+  pbar = tf.reduce_sum(confusion_matrix, axis=0)
+  pbar /= tf.reduce_sum(pbar)
 
-  def __init__(self, num_bins=15, name=None, dtype=None):
-    """Constructs an expected calibration error metric.
+  # dist_mean[k,:] contains the empirical distribution for the set M_k
+  # Some outcomes may not realize, corresponding to dist_weights[k] = 0
+  dist_mean = confusion_matrix / tf.expand_dims(
+      tf.reduce_sum(confusion_matrix, axis=1) + 1.0e-7, 1)
 
-    Args:
-      num_bins: Number of bins to maintain over the interval [0, 1].
-      name: Name of this metric.
-      dtype: Data type.
-    """
-    super(ExpectedCalibrationError, self).__init__(name, dtype)
-    self.num_bins = num_bins
+  # Uncertainty: quadratic entropy of the average label distribution
+  uncertainty = -tf.reduce_sum(tf.square(pbar))
 
-    self.correct_sums = self.add_weight(
-        'correct_sums', shape=(num_bins,), initializer=tf.zeros_initializer)
-    self.prob_sums = self.add_weight(
-        'prob_sums', shape=(num_bins,), initializer=tf.zeros_initializer)
-    self.counts = self.add_weight(
-        'counts', shape=(num_bins,), initializer=tf.zeros_initializer)
+  # Resolution: expected quadratic divergence of predictive to mean
+  resolution = tf.square(tf.expand_dims(pbar, 1) - dist_mean)
+  resolution = tf.reduce_sum(dist_weights * tf.reduce_sum(resolution, axis=1))
 
-  @tf.function
-  def update_state(self, labels, probabilities, **kwargs):
-    """Updates this metric.
+  # Reliability: expected quadratic divergence of predictive to true
+  prob_true = tf.gather(dist_mean, pred_class, axis=0)
+  reliability = tf.reduce_sum(tf.square(prob_true - probabilities), axis=1)
+  reliability = tf.reduce_mean(reliability)
 
-    This will flatten the labels and probabilities, and then compute the ECE
-    over all predictions.
+  return uncertainty, resolution, reliability
 
-    Args:
-      labels: Tensor of shape [..., ] of class labels in [0, k-1].
-      probabilities: Tensor of shape [..., ], [..., 1] or [..., k] of normalized
-        probabilities associated with the True class in the binary case, or with
-        each of k classes in the multiclass case.
-      **kwargs: Other potential keywords, which will be ignored by this method.
-    """
-    del kwargs  # unused
-    labels = tf.convert_to_tensor(labels)
-    probabilities = tf.cast(probabilities, self.dtype)
 
-    # Flatten labels to [N, ] and probabilities to [N, 1] or [N, k].
-    if tf.rank(labels) != 1:
-      labels = tf.reshape(labels, [-1])
-    if tf.rank(probabilities) != 2 or (tf.shape(probabilities)[0] !=
-                                       tf.shape(labels)[0]):
-      probabilities = tf.reshape(probabilities, [tf.shape(labels)[0], -1])
-    # Extend any probabilities of shape [N, 1] to shape [N, 2].
-    # NOTE: XLA does not allow for different shapes in the branches of a
-    # conditional statement. Therefore, explicit indexing is used.
-    given_k = tf.shape(probabilities)[-1]
-    k = tf.math.maximum(2, given_k)
-    probabilities = tf.cond(
-        given_k < 2,
-        lambda: tf.concat([1. - probabilities, probabilities], axis=-1)[:, -k:],
-        lambda: probabilities)
+def brier_score(labels=None, logits=None, probabilities=None, aggregate=True):
+  r"""Compute the Brier score for a probabilistic prediction.
 
-    pred_labels = tf.math.argmax(probabilities, axis=-1)
-    pred_probs = tf.math.reduce_max(probabilities, axis=-1)
-    correct_preds = tf.math.equal(pred_labels,
-                                  tf.cast(labels, pred_labels.dtype))
-    correct_preds = tf.cast(correct_preds, self.dtype)
+  The [Brier score][1] is a loss function for probabilistic predictions over a
+  number of discrete outcomes.  For a probability vector `p` and a realized
+  outcome `k` the Brier score is `sum_i p[i]*p[i] - 2*p[k]`.  Smaller values are
+  better in terms of prediction quality.  The Brier score can be negative.
 
-    bin_indices = tf.histogram_fixed_width_bins(
-        pred_probs, tf.constant([0., 1.], self.dtype), nbins=self.num_bins)
-    batch_correct_sums = tf.math.unsorted_segment_sum(
-        data=tf.cast(correct_preds, self.dtype),
-        segment_ids=bin_indices,
-        num_segments=self.num_bins)
-    batch_prob_sums = tf.math.unsorted_segment_sum(data=pred_probs,
-                                                   segment_ids=bin_indices,
-                                                   num_segments=self.num_bins)
-    batch_counts = tf.math.unsorted_segment_sum(data=tf.ones_like(bin_indices),
-                                                segment_ids=bin_indices,
-                                                num_segments=self.num_bins)
-    batch_counts = tf.cast(batch_counts, self.dtype)
-    self.correct_sums.assign_add(batch_correct_sums)
-    self.prob_sums.assign_add(batch_prob_sums)
-    self.counts.assign_add(batch_counts)
+  Compared to the cross entropy (aka logarithmic scoring rule) the Brier score
+  does not strongly penalize events which are deemed unlikely but do occur,
+  see [2].  The Brier score is a strictly proper scoring rule and therefore
+  yields consistent probabilistic predictions.
 
-  def result(self):
-    """Computes the expected calibration error."""
-    non_empty = tf.math.not_equal(self.counts, 0)
-    correct_sums = tf.boolean_mask(self.correct_sums, non_empty)
-    prob_sums = tf.boolean_mask(self.prob_sums, non_empty)
-    counts = tf.boolean_mask(self.counts, non_empty)
-    accs = correct_sums / counts
-    confs = prob_sums / counts
-    total_count = tf.reduce_sum(counts)
-    return tf.reduce_sum(counts / total_count * tf.abs(accs - confs))
+  #### References
+  [1]: G.W. Brier.
+       Verification of forecasts expressed in terms of probability.
+       Monthley Weather Review, 1950.
+  [2]: Tilmann Gneiting, Adrian E. Raftery.
+       Strictly Proper Scoring Rules, Prediction, and Estimation.
+       Journal of the American Statistical Association, Vol. 102, 2007.
+       https://www.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf
 
-  def reset_states(self):
-    """Resets all of the metric state variables.
+  Args:
+    labels: Tensor, (n,), with tf.int32 or tf.int64 elements containing ground
+      truth class labels in the range [0,nlabels].
+    logits: Tensor, (n,nlabels), with logits for n instances and nlabels.
+    probabilities: Tensor, (n, nlabels), with predictive probability
+      distribution (alternative to logits argument).
+    aggregate: bool, whether or not to average over the batch.
 
-    This function is called between epochs/steps,
-    when a metric is evaluated during training.
-    """
-    tf.keras.backend.batch_set_value([(v, [0.,]*self.num_bins) for v in
-                                      self.variables])
+  Returns:
+    brier_score: Tensor, if `aggregate` is true then it is a scalar, the average
+      Brier score over all instances, else it is a vector of the Brier score for
+      each individual element of the batc.
+  """
+  if (logits is None) == (probabilities is None):
+    raise ValueError(
+        "brier_score expects exactly one of logits or probabilities.")
+  if probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:
+      raise ValueError(
+          "brier_score expects logits for binary classification of "
+          "shape (n, 2) for nlabels=2 but got ", logits.get_shape())
+    probabilities = tf.math.softmax(logits, axis=1)
+  if (probabilities.get_shape().as_list()[-1] == 1 or
+      len(probabilities.get_shape().as_list()) == 1):
+    raise ValueError(
+        "brier_score expects probabilities for binary classification of"
+        " shape (n, 2) for nlabels=2 but got ", probabilities.get_shape())
+  _, nlabels = probabilities.shape  # Implicit rank check.
+  plabel = tf.reduce_sum(tf.one_hot(labels, nlabels) * probabilities, axis=1)
+
+  brier = tf.reduce_sum(tf.square(probabilities), axis=1) - 2.0 * plabel
+  if aggregate:
+    brier = tf.reduce_mean(brier)
+
+  return brier
+
+
+def _bin_centers(num_bins):
+  """Split the unit interval into `num_bins` equal parts and return centers."""
+  return tf.linspace(0.0, 1.0 - 1.0/num_bins, num_bins) + 0.5/num_bins
+
+
+def _prob_posterior(num_bins, bin_n, bin_pmean):
+  """Compute posterior mean and standard deviation for unknown per-bin means.
+
+  Args:
+    num_bins: int, positive, the number of equal-sized bins to divide the unit
+      interval into.
+    bin_n: Tensor, shape (num_bins,), containing the absolute counts of
+      observations falling into each bin.
+    bin_pmean: Tensor, shape (num_bins,), containing the average predicted
+      probability value that falls into this bin.
+
+  Returns:
+    posterior_means: Tensor, (num_bins,), the per-bin posterior mean.
+    posterior_stddev: Tensor, (num_bins,), the per-bin posterior standard
+      deviation.
+  """
+  bin_centers = _bin_centers(num_bins)
+  sigma0_sq = (1.0/num_bins) / 12.0   # matching moment of Uniform(Bin)
+  sigma_sq = (1.0/num_bins) / 12.0
+
+  sigman_sq = 1.0 / (bin_n/sigma_sq + 1.0/sigma0_sq)
+  posterior_means = sigman_sq*(
+      bin_centers/sigma0_sq + bin_n*(bin_pmean/sigma_sq))
+  posterior_stddev = tf.sqrt(sigman_sq)
+
+  return posterior_means, posterior_stddev
+
+
+def _compute_ece(prob, bin_mean_prob):
+  """Compute the expected calibration error (ECE).
+
+  Args:
+    prob: Tensor, shape (2,num_bins), containing the probabilities over the
+      {incorrect,correct}x{0,1,..,num_bins-1} events.
+    bin_mean_prob: Tensor, shape (1,num_bins), containing the average
+      probability within each bin.
+
+  Returns:
+    ece: Tensor, scalar, the expected calibration error.
+  """
+  pz_given_b = prob / tf.expand_dims(tf.reduce_sum(prob, axis=0), 0)
+  prob_correct = prob[1, :] / tf.reduce_sum(prob[1, :])
+  ece = tf.reduce_sum(prob_correct * tf.abs(pz_given_b[1, :] - bin_mean_prob))
+
+  return ece
+
+
+def _compute_calibration_bin_statistics(
+    num_bins, logits=None, probabilities=None,
+    labels_true=None, labels_predicted=None):
+  """Compute binning statistics required for calibration measures.
+
+  Args:
+    num_bins: int, number of probability bins, e.g. 10.
+    logits: Tensor, (n,nlabels), with logits for n instances and nlabels.
+    probabilities: Tensor, (n,nlabels), with probs for n instances and nlabels.
+    labels_true: Tensor, (n,), with tf.int32 or tf.int64 elements containing
+      ground truth class labels in the range [0,nlabels].
+    labels_predicted: Tensor, (n,), with tf.int32 or tf.int64 elements
+      containing decisions of the predictive system.  If `None`, we will use
+      the argmax decision using the `logits`.
+
+  Returns:
+    bz: Tensor, shape (2,num_bins), tf.int32, counts of incorrect (row 0) and
+      correct (row 1) predictions in each of the `num_bins` probability bins.
+    pmean_observed: Tensor, shape (num_bins,), tf.float32, the mean predictive
+      probabilities in each probability bin.
+  """
+  if (logits is None) == (probabilities is None):
+    raise ValueError(
+        "_compute_calibration_bin_statistics expects exactly one of logits or "
+        "probabilities.")
+  if probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:
+      raise ValueError(
+          "_compute_calibration_bin_statistics expects logits for binary"
+          " classification of shape (n, 2) for nlabels=2 but got ",
+          logits.get_shape())
+    probabilities = tf.math.softmax(logits, axis=1)
+  if (probabilities.get_shape().as_list()[-1] == 1 or
+      len(probabilities.get_shape().as_list()) == 1):
+    raise ValueError(
+        "_compute_calibration_bin_statistics expects probabilities for binary"
+        " classification of shape (n, 2) for nlabels=2 but got ",
+        probabilities.get_shape())
+
+  if labels_predicted is None:
+    # If no labels are provided, we take the label with the maximum probability
+    # decision.  This corresponds to the optimal expected minimum loss decision
+    # under 0/1 loss.
+    pred_y = tf.cast(tf.argmax(probabilities, axis=1), tf.int32)
+  else:
+    pred_y = labels_predicted
+
+  correct = tf.cast(tf.equal(pred_y, labels_true), tf.int32)
+
+  # Collect predicted probabilities of decisions
+  prob_y = tf.compat.v1.batch_gather(probabilities,
+                                     tf.expand_dims(pred_y, 1))  # p(pred_y | x)
+  prob_y = tf.reshape(prob_y, (tf.size(prob_y),))
+
+  # Compute b/z histogram statistics:
+  # bz[0,bin] contains counts of incorrect predictions in the probability bin.
+  # bz[1,bin] contains counts of correct predictions in the probability bin.
+  bins = tf.histogram_fixed_width_bins(prob_y, [0.0, 1.0], nbins=num_bins)
+  event_bin_counts = tf.math.bincount(
+      correct*num_bins + bins,
+      minlength=2*num_bins,
+      maxlength=2*num_bins)
+  event_bin_counts = tf.reshape(event_bin_counts, (2, num_bins))
+
+  # Compute mean predicted probability value in each of the `num_bins` bins
+  pmean_observed = tf.math.unsorted_segment_sum(prob_y, bins, num_bins)
+  tiny = np.finfo(np.float32).tiny
+  pmean_observed = pmean_observed / (
+      tf.cast(tf.reduce_sum(event_bin_counts, axis=0), tf.float32) + tiny)
+
+  return event_bin_counts, pmean_observed
+
+
+def expected_calibration_error(num_bins, logits=None, probabilities=None,
+                               labels_true=None,
+                               labels_predicted=None):
+  """Compute the Expected Calibration Error (ECE).
+
+  This method implements equation (3) in [1].  In this equation the probability
+  of the decided label being correct is used to estimate the calibration
+  property of the predictor.
+
+  Note: a trade-off exist between using a small number of `num_bins` and the
+  estimation reliability of the ECE.  In particular, this method may produce
+  unreliable ECE estimates in case there are few samples available in some bins.
+  As an alternative to this method, consider also using
+  `bayesian_expected_calibration_error`.
+
+  #### References
+  [1]: Chuan Guo, Geoff Pleiss, Yu Sun, Kilian Q. Weinberger,
+       On Calibration of Modern Neural Networks.
+       Proceedings of the 34th International Conference on Machine Learning
+       (ICML 2017).
+       arXiv:1706.04599
+       https://arxiv.org/pdf/1706.04599.pdf
+
+  Args:
+    num_bins: int, number of probability bins, e.g. 10.
+    logits: Tensor, (n,nlabels), with logits for n instances and nlabels.
+    probabilities: Tensor, (n,nlabels), with probs for n instances and nlabels.
+    labels_true: Tensor, (n,), with tf.int32 or tf.int64 elements containing
+      ground truth class labels in the range [0,nlabels].
+    labels_predicted: Tensor, (n,), with tf.int32 or tf.int64 elements
+      containing decisions of the predictive system.  If `None`, we will use
+      the argmax decision using the `logits`.
+
+  Returns:
+    ece: Tensor, scalar, tf.float32.
+  """
+  if (logits is None) == (probabilities is None):
+    raise ValueError(
+        "expected_calibration_error expects exactly one of logits or "
+        "probabilities.")
+  if probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:
+      raise ValueError(
+          "expected_calibration_error expects logits for binary"
+          " classification of shape (n, 2) for nlabels=2 but got ",
+          logits.get_shape())
+    probabilities = tf.math.softmax(logits, axis=1)
+  if (probabilities.get_shape().as_list()[-1] == 1 or
+      len(probabilities.get_shape().as_list()) == 1):
+    raise ValueError(
+        "expected_calibration_error expects probabilities for binary"
+        " classification of shape (n, 2) for nlabels=2 but got ",
+        probabilities.get_shape())
+  # Compute empirical counts over the events defined by the sets
+  # {incorrect,correct}x{0,1,..,num_bins-1}, as well as the empirical averages
+  # of predicted probabilities in each probability bin.
+  event_bin_counts, pmean_observed = _compute_calibration_bin_statistics(
+      num_bins, probabilities=probabilities,
+      labels_true=labels_true,
+      labels_predicted=labels_predicted)
+
+  # Compute the marginal probability of observing a particular probability bin.
+  event_bin_counts = tf.cast(event_bin_counts, tf.float32)
+  bin_n = tf.reduce_sum(event_bin_counts, axis=0)
+  pbins = bin_n / tf.reduce_sum(bin_n)  # Compute the marginal bin probability.
+
+  # Compute the marginal probability of making a correct decision given an
+  # observed probability bin.
+  tiny = np.finfo(np.float32).tiny
+  pcorrect = event_bin_counts[1, :] / (bin_n + tiny)
+
+  # Compute the ECE statistic as defined in reference [1].
+  ece = tf.reduce_sum(pbins * tf.abs(pcorrect - pmean_observed))
+
+  return ece
+
+
+def bayesian_expected_calibration_error(num_bins, logits=None,
+                                        probabilities=None,
+                                        labels_true=None,
+                                        labels_predicted=None,
+                                        num_ece_samples=500):
+  """Sample from the posterior of the Expected Calibration Error (ECE).
+
+  The Bayesian ECE is defined via a posterior over ECEs given the observed data.
+  With a large number of observations it will closely match the ordinary ECE but
+  with few observations it will provide uncertainty estimates about the ECE.
+
+  This method produces iid samples from the posterior over ECE values and for
+  practical use you can summarize these samples, for example by computing the
+  mean or quantiles.  For example, the following code will compute a 10%-90%
+  most probable region as well as the median ECE estimate.
+
+  ```
+  ece_samples = bayesian_expected_calibration_error(10, logits=logits,
+                                                    labels=labels)
+  tfp.stats.percentile(ece_samples, [10.0, 50.0, 90.0])
+  ```
+
+  Args:
+    num_bins: int, number of probability bins, e.g. 10.
+    logits: Tensor, (n,nlabels), with logits for n instances and nlabels.
+    probabilities: Tensor, (n,nlabels), with probs for n instances and nlabels.
+    labels_true: Tensor, (n,), with tf.int32 or tf.int64 elements containing
+      ground truth class labels in the range [0,nlabels].
+    labels_predicted: Tensor, (n,), with tf.int32 or tf.int64 elements
+      containing decisions of the predictive system.  If `None`, we will use
+      the argmax decision using the `logits`.
+    num_ece_samples: int, number of posterior samples of the ECE to create.
+
+  Returns:
+    ece_samples: Tensor, (ece_samples,), tf.float32 elements, ECE samples.
+  """
+  if (logits is None) == (probabilities is None):
+    raise ValueError(
+        "bayesian_expected_calibration_error expects exactly one of logits or "
+        "probabilities.")
+  if probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:
+      raise ValueError(
+          "bayesian_expected_calibration_error expects logits for binary"
+          " classification of shape (n, 2) for nlabels=2 but got ",
+          logits.get_shape())
+    probabilities = tf.math.softmax(logits, axis=1)
+  if (probabilities.get_shape().as_list()[-1] == 1 or
+      len(probabilities.get_shape().as_list()) == 1):
+    raise ValueError(
+        "bayesian_expected_calibration_error expects probabilities for binary"
+        " classification of shape (n, 2) for nlabels=2 but got ",
+        probabilities.get_shape())
+
+  event_bin_counts, pmean_observed = _compute_calibration_bin_statistics(
+      num_bins, probabilities=probabilities,
+      labels_true=labels_true, labels_predicted=labels_predicted)
+  event_bin_counts = tf.cast(event_bin_counts, tf.float32)
+
+  # Compute posterior over probability value in each bin
+  bin_n = tf.reduce_sum(event_bin_counts, axis=0)
+  post_ploc, post_pscale = _prob_posterior(num_bins, bin_n, pmean_observed)
+  bin_centers = _bin_centers(num_bins)
+  half_bin = 0.5*(1.0/num_bins)
+  post_pmean = tfd.TruncatedNormal(
+      loc=post_ploc, scale=post_pscale,
+      low=bin_centers-half_bin, high=bin_centers+half_bin)
+
+  # Compute the Dirichlet posterior over b/z probabilities
+  prior_alpha = 1.0/num_bins  # Perk's Dirichlet prior
+  post_alpha = tf.reshape(event_bin_counts + prior_alpha, (2*num_bins,))
+  posterior_event = tfd.Dirichlet(post_alpha)
+
+  # Sample ECEs from the analytic and posteriors, which factorize
+  ece_samples = tf.stack(
+      [_compute_ece(tf.reshape(posterior_event.sample(), (2, num_bins)),
+                    post_pmean.sample()) for _ in range(num_ece_samples)])
+
+  return ece_samples
+

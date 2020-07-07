@@ -23,30 +23,6 @@ from uncertainty_metrics import regression
 
 ## Key Concepts
 
-# Metrics for evaluating probability models
-
-There is not yet a stable version (nor an official release of this library). All
-APIs are subject to change.
-
-This project implements several metrics to measure the prediction quality of
-probabilistic models.
-
-There are two uses of uncertainty metrics:
-
-1.  _Model evaluation_: assessing the quality of your probabilistic model on a
-    validation or test set.
-2.  _Model training_: you can use the loss functions defined in this project to
-    train probabilistic classification and regression models.
-
-To use it, import the desired submodule. For example, in order to use the
-regression scores, use
-
-```python
-from uncertainty_metrics import regression
-```
-
-## Key Concepts
-
 ### Proper Scoring Rules {#proper-scoring-rules}
 
 _Proper scoring rules_ are loss functions for probabilistic predictions.
@@ -186,7 +162,7 @@ Then you can alternatively use the API-compatible [_Brier loss_](#brier-score)
 as follows:
 
 ```python
-  per_example_loss = um.calibration.brier_score(
+  per_example_loss = predictive_metrics.calibration.brier_score(
     labels=target_labels, logits=logits)
   loss = tf.reduce_mean(per_example_loss)
 ```
@@ -232,7 +208,7 @@ standard deviation `stddevs`, we can compute CRPS as follows,
 
 ```python
   squared_errors = tf.square(target_labels - pred_means)
-  per_example_crps = um.regression.crps_normal_score(
+  per_example_crps = predictive_metrics.regression.crps_normal_score(
     labels=target_labels,
     means=pred_mean,
     stddevs=pred_stddevs)
@@ -246,7 +222,7 @@ Monte Carlo CRPS against the true targets `target_labels` using the following
 code,
 
 ```python
-  per_example_crps = um.regression.crps_score(
+  per_example_crps = predictive_metrics.regression.crps_score(
     labels=target_labels,
     predictive_samples=predictive_samples)
 ```
@@ -269,7 +245,7 @@ You can compute additional metrics using the so called
 _uncertainty_, _resolution_, and _reliability_ by appending the following code,
 
 ```python
-  uncert, resol, reliab = um.calibration.brier_decomposition(
+  uncert, resol, reliab = predictive_metrics.calibration.brier_decomposition(
     labels=validation_labels, logits=logits)
 ```
 
@@ -356,7 +332,7 @@ code:
 ```python
   # labels_true is a tf.int32 Tensor
   logits = model(validation_data)
-  ece_samples = um.calibration.bayesian_expected_calibration_error(
+  ece_samples = predictive_metrics.calibration.bayesian_expected_calibration_error(
       10, logits=logits, labels_true=labels_true)
 
   ece_quantiles = tensorflow_probability.stats.percentile(
@@ -423,7 +399,7 @@ Both nWAIC criteria have comparable properties, but Watanabe recommends $$\textr
 To estimate the negative WAIC, we use the following code.
 
 ```python
-  import uncertainty_metrics.posterior_predictive_criteria as ppc
+  import predictive_metrics.posterior_predictive_criteria as ppc
 
   # logp has shape (n,m), n instances, m ensemble members
   neg_waic, neg_waic_sem = ppc.negative_waic(logp, waic_type="waic1")
@@ -446,7 +422,7 @@ $$\textrm{ISCV} := -\frac{1}{n} \sum_{i=1}^n
 We can estimate the ISCV using the following code:
 
 ```python
-  import uncertainty_metrics.posterior_predictive_criteria as ppc
+  import predictive_metrics.posterior_predictive_criteria as ppc
 
   # logp has shape (n,m), n instances, m ensemble members
   iscv, iscv_sem = ppc.importance_sampling_cross_validation(logp)

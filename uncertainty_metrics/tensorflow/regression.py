@@ -19,10 +19,6 @@ Proper scoring rules allow us to evaluate of train probabilistic models with
 real-valued outputs.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import math
 import tensorflow.compat.v2 as tf
 import tensorflow_probability as tfp

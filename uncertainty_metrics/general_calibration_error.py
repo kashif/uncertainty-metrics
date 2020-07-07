@@ -146,6 +146,8 @@ class GeneralCalibrationError():
     confidences: Vector, mean confidence within each bin.
 
     calibration_error: Float, computed calibration error.
+
+    calibration_errors: Vector, difference between accuracies and confidences.
   """
 
   def __init__(self,
@@ -168,6 +170,7 @@ class GeneralCalibrationError():
     self.accuracies = None
     self.confidences = None
     self.calibration_error = None
+    self.calibration_errors = None
 
   def get_calibration_error(self, probs, labels, bin_lower_bounds, norm,
                             num_bins):
@@ -179,9 +182,9 @@ class GeneralCalibrationError():
         [len(probs[bins == i]) for i in range(num_bins)])
     self.accuracies = np.nan_to_num(
         np.array([mean(labels[bins == i]) for i in range(num_bins)]))
-    self.calibration_error = self.accuracies-self.confidences
+    self.calibration_errors = self.accuracies-self.confidences
     weighting = counts / float(len(probs.flatten()))
-    weighted_calibration_error = self.calibration_error * weighting
+    weighted_calibration_error = self.calibration_errors * weighting
     if norm == 'l1':
       return np.sum(np.abs(weighted_calibration_error))
     else:
@@ -189,6 +192,8 @@ class GeneralCalibrationError():
 
   def update_state(self, probs, labels):
     """Updates the value of the General Calibration Error."""
+
+    # if self.calibration_error is not None and
 
     probs = np.array(probs)
     labels = np.array(labels)
@@ -269,6 +274,9 @@ class GeneralCalibrationError():
 
   def result(self):
     return self.calibration_error
+
+  def reset_state(self):
+    self.calibration_error = None
 
 
 def gce(probs,
@@ -385,6 +393,8 @@ def rmsce(probs, labels, num_bins=30, datapoints_per_bin=100):
              num_bins=num_bins,
              datapoints_per_bin=datapoints_per_bin)
 
+root_mean_squared_calibration_error = rmsce
+
 
 def sce(probs, labels, num_bins=30):
   """Implements Static Calibration Error."""
@@ -395,6 +405,8 @@ def sce(probs, labels, num_bins=30):
              class_conditional=True,
              norm='l1',
              num_bins=num_bins)
+
+static_calibration_error = sce
 
 
 def ace(probs, labels, num_bins=30):
@@ -407,6 +419,8 @@ def ace(probs, labels, num_bins=30):
              norm='l1',
              num_bins=num_bins)
 
+adaptive_calibration_error = ace
+
 
 def tace(probs, labels, num_bins=30, threshold=0.01):
   """Implements Thresholded Adaptive Calibration Error."""
@@ -418,3 +432,5 @@ def tace(probs, labels, num_bins=30, threshold=0.01):
              norm='l1',
              num_bins=num_bins,
              threshold=threshold)
+
+thresholded_adaptive_calibration_error = tace

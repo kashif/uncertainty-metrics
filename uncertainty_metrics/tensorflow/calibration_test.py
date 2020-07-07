@@ -13,160 +13,281 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
-"""Tests for calibration metrics."""
+"""Tests for uncertainty_metrics.calibration."""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import itertools
+from absl import logging
+from absl.testing import parameterized
 import numpy as np
 import tensorflow.compat.v2 as tf
+import tensorflow_probability as tfp
 import uncertainty_metrics as um
 
 
-class ExpectedCalibrationErrorTest(tf.test.TestCase):
+class CalibrationTest(parameterized.TestCase, tf.test.TestCase):
 
-  def testBinaryClassification(self):
-    num_bins = 10
-    pred_probs = np.array([0.51, 0.45, 0.39, 0.66, 0.68, 0.29, 0.81, 0.85])
-    # max_pred_probs: [0.51, 0.55, 0.61, 0.66, 0.68, 0.71, 0.81, 0.85]
-    # pred_class: [1, 0, 0, 1, 1, 0, 1, 1]
-    labels = np.array([0., 0., 0., 1., 0., 1., 1., 1.])
-    n = len(pred_probs)
+  _TEMPERATURES = [0.01, 1.0, 5.0]
+  _NLABELS = [2, 4]
+  _NSAMPLES = [8192, 16384]
 
-    # Bins for the max predicted probabilities are (0, 0.1), [0.1, 0.2), ...,
-    # [0.9, 1) and are numbered starting at zero.
-    bin_counts = np.array([0, 0, 0, 0, 0, 2, 3, 1, 2, 0])
-    bin_correct_sums = np.array([0, 0, 0, 0, 0, 1, 2, 0, 2, 0])
-    bin_prob_sums = np.array([0, 0, 0, 0, 0, 0.51 + 0.55, 0.61 + 0.66 + 0.68,
-                              0.71, 0.81 + 0.85, 0])
+  @parameterized.parameters(
+      itertools.product(_TEMPERATURES, _NLABELS, _NSAMPLES)
+  )
+  def test_brier_decomposition(self, temperature, nlabels, nsamples):
+    """Test the accuracy of the estimated Brier decomposition."""
+    tf.random.set_seed(1)
+    logits = tf.random.normal((nsamples, nlabels)) / temperature
+    labels = tf.random.uniform((nsamples,), maxval=nlabels, dtype=tf.int32)
 
-    correct_ece = 0.
-    bin_accs = np.array([0.] * num_bins)
-    bin_confs = np.array([0.] * num_bins)
-    for i in range(num_bins):
-      if bin_counts[i] > 0:
-        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
-        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
-        correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
+    uncertainty, resolution, reliability = um.brier_decomposition(
+        labels=labels, logits=logits)
+    uncertainty = float(uncertainty)
+    resolution = float(resolution)
+    reliability = float(reliability)
 
-    metric = um.ExpectedCalibrationError(
-        num_bins, name='ECE', dtype=tf.float64)
-    self.assertEqual(len(metric.variables), 3)
+    # Recover an estimate of the Brier score from the decomposition
+    brier = uncertainty - resolution + reliability
 
-    ece1 = metric(labels, pred_probs)
-    self.assertAllClose(ece1, correct_ece)
+    # Estimate Brier score directly
+    brier_direct = um.brier_score(labels=labels, logits=logits)
+    brier_direct = float(brier_direct)
 
-    actual_bin_counts = tf.convert_to_tensor(metric.counts)
-    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
-    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
-    self.assertAllEqual(bin_counts, actual_bin_counts)
-    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
-    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+    logging.info("Brier, n=%d k=%d T=%.2f, Unc %.4f - Res %.4f + Rel %.4f = "
+                 "Brier %.4f,  Brier-direct %.4f",
+                 nsamples, nlabels, temperature,
+                 uncertainty, resolution, reliability,
+                 brier, brier_direct)
 
-    # Test various types of input shapes.
-    metric.reset_states()
-    metric.update_state(labels[:2], pred_probs[:2])
-    metric.update_state(labels[2:6].reshape(2, 2),
-                        pred_probs[2:6].reshape(2, 2))
-    metric.update_state(labels[6:7], pred_probs[6:7])
-    ece2 = metric(labels[7:, np.newaxis], pred_probs[7:, np.newaxis])
-    ece3 = metric.result()
-    self.assertAllClose(ece2, ece3)
-    self.assertAllClose(ece3, correct_ece)
+    self.assertGreaterEqual(resolution, 0.0, msg="Brier resolution negative")
+    self.assertGreaterEqual(reliability, 0.0, msg="Brier reliability negative")
+    self.assertAlmostEqual(
+        brier, brier_direct, delta=1.0e-2,
+        msg="Brier from decomposition (%.4f) and Brier direct (%.4f) disagree "
+        "beyond estimation error." % (brier, brier_direct))
 
-    actual_bin_counts = tf.convert_to_tensor(metric.counts)
-    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
-    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
-    self.assertAllEqual(bin_counts, actual_bin_counts)
-    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
-    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+  def _compute_perturbed_reliability(self, data, labels,
+                                     weights, bias, perturbation):
+    """Compute reliability of data set under perturbed hypothesis."""
+    weights_perturbed = weights + perturbation*tf.random.normal(weights.shape)
+    logits_perturbed = tf.matmul(data, weights_perturbed)
+    logits_perturbed += tf.expand_dims(bias, 0)
 
-  def testBinaryClassificationKerasModel(self):
-    num_bins = 10
-    pred_probs = np.array([0.51, 0.45, 0.39, 0.66, 0.68, 0.29, 0.81, 0.85])
-    # max_pred_probs: [0.51, 0.55, 0.61, 0.66, 0.68, 0.71, 0.81, 0.85]
-    # pred_class: [1, 0, 0, 1, 1, 0, 1, 1]
-    labels = np.array([0., 0., 0., 1., 0., 1., 1., 1.])
-    n = len(pred_probs)
+    _, _, reliability = um.brier_decomposition(
+        labels=labels, logits=logits_perturbed)
 
-    # Bins for the max predicted probabilities are (0, 0.1), [0.1, 0.2), ...,
-    # [0.9, 1) and are numbered starting at zero.
-    bin_counts = [0, 0, 0, 0, 0, 2, 3, 1, 2, 0]
-    bin_correct_sums = [0, 0, 0, 0, 0, 1, 2, 0, 2, 0]
-    bin_prob_sums = [0, 0, 0, 0, 0, 0.51 + 0.55, 0.61 + 0.66 + 0.68, 0.71,
-                     0.81 + 0.85, 0]
+    return float(reliability)
 
-    correct_ece = 0.
-    bin_accs = [0.] * num_bins
-    bin_confs = [0.] * num_bins
-    for i in range(num_bins):
-      if bin_counts[i] > 0:
-        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
-        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
-        correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
+  def _generate_linear_dataset(self, nfeatures, nlabels, nsamples):
+    tf.random.set_seed(1)
+    data = tf.random.normal((nsamples, nfeatures))
+    weights = tf.random.normal((nfeatures, nlabels))
+    bias = tf.random.normal((nlabels,))
 
-    metric = um.ExpectedCalibrationError(num_bins, name='ECE')
-    self.assertEqual(len(metric.variables), 3)
+    logits_true = tf.matmul(data, weights) + tf.expand_dims(bias, 0)
+    prob_true = tfp.distributions.Categorical(logits=logits_true)
+    labels = prob_true.sample(1)
+    labels = tf.reshape(labels, (tf.size(input=labels),))
 
-    model = tf.keras.models.Sequential([tf.keras.layers.Lambda(lambda x: 1*x)])
-    model.compile(loss='binary_crossentropy', optimizer='sgd', metrics=[metric])
-    outputs = model.predict(pred_probs)
-    self.assertAllClose(pred_probs.reshape([n, 1]), outputs)
-    _, ece = model.evaluate(pred_probs, labels)
-    self.assertAllClose(ece, correct_ece)
+    return data, labels, weights, bias
 
-    actual_bin_counts = tf.convert_to_tensor(metric.counts)
-    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
-    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
-    self.assertAllEqual(bin_counts, actual_bin_counts)
-    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
-    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+  @parameterized.parameters(
+      (5, 2, 20000), (5, 4, 20000),
+  )
+  def test_reliability_experiment(self, nfeatures, nlabels, nsamples,
+                                  tolerance=0.05):
+    data, labels, weights, bias = self._generate_linear_dataset(
+        nfeatures, nlabels, nsamples)
 
-  def testMulticlassClassification(self):
-    num_bins = 10
-    pred_probs = [
-        [0.31, 0.32, 0.27],
-        [0.37, 0.33, 0.30],
-        [0.30, 0.31, 0.39],
-        [0.61, 0.38, 0.01],
-        [0.10, 0.65, 0.25],
-        [0.91, 0.05, 0.04],
-    ]
-    # max_pred_probs: [0.32, 0.37, 0.39, 0.61, 0.65, 0.91]
-    # pred_class: [1, 0, 2, 0, 1, 0]
-    labels = [1., 0, 0., 1., 0., 0.]
-    n = len(pred_probs)
+    nreplicates = 40
+    perturbations = np.linspace(0.0, 3.0, 10)
+    reliability = np.zeros_like(perturbations)
 
-    # Bins for the max predicted probabilities are (0, 0.1), [0.1, 0.2), ...,
-    # [0.9, 1) and are numbered starting at zero.
-    bin_counts = [0, 0, 0, 3, 0, 0, 2, 0, 0, 1]
-    bin_correct_sums = [0, 0, 0, 2, 0, 0, 0, 0, 0, 1]
-    bin_prob_sums = [0, 0, 0, 0.32 + 0.37 + 0.39, 0, 0, 0.61 + 0.65, 0, 0, 0.91]
+    for i, perturbation in enumerate(perturbations):
+      reliability_replicates = np.array(
+          [self._compute_perturbed_reliability(data, labels, weights,
+                                               bias, perturbation)
+           for _ in range(nreplicates)])
+      reliability[i] = np.mean(reliability_replicates)
+      logging.info("Reliability at perturbation %.3f: %.4f", perturbation,
+                   reliability[i])
 
-    correct_ece = 0.
-    bin_accs = [0.] * num_bins
-    bin_confs = [0.] * num_bins
-    for i in range(num_bins):
-      if bin_counts[i] > 0:
-        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
-        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
-        correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
+    for i in range(1, len(reliability)):
+      self.assertLessEqual(reliability[i-1], reliability[i] + tolerance,
+                           msg="Reliability decreases (%.4f to %.4f + %.3f) "
+                           "with perturbation size increasing from %.4f "
+                           "to %.4f" % (reliability[i-1], reliability[i],
+                                        tolerance,
+                                        perturbations[i-1], perturbations[i]))
 
-    metric = um.ExpectedCalibrationError(
-        num_bins, name='ECE', dtype=tf.float64)
-    self.assertEqual(len(metric.variables), 3)
+  def test_expected_calibration_error(self):
+    probs = tf.convert_to_tensor([[0.3, 0.7], [0.9, 0.1], [0.4, 0.6]])
+    logits = tf.math.log(probs)
+    labels = tf.convert_to_tensor([1, 0, 0], dtype=tf.int32)
 
-    metric.update_state(labels[:4], pred_probs[:4])
-    ece1 = metric(labels[4:], pred_probs[4:])
-    ece2 = metric.result()
-    self.assertAllClose(ece1, ece2)
-    self.assertAllClose(ece2, correct_ece)
+    ece = um.expected_calibration_error(
+        3, logits=logits, labels_true=labels)
+    ece = float(ece)
+    ece_true = 0.33333333
 
-    actual_bin_counts = tf.convert_to_tensor(metric.counts)
-    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
-    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
-    self.assertAllEqual(bin_counts, actual_bin_counts)
-    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
-    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+    self.assertAlmostEqual(ece, ece_true, places=6,
+                           msg="Computed ECE (%.5f) does not match "
+                           "true ECE (%.5f)." % (ece, ece_true))
 
+  def _generate_perfect_calibration_logits(self, nsamples, nclasses):
+    """Generate well distributed and well calibrated probabilities.
 
-if __name__ == '__main__':
+    Args:
+      nsamples: int, >= 1, number of samples to generate.
+      nclasses: int, >= 2, number of classes.
+
+    Returns:
+      logits: Tensor, shape (nsamples, nclasses), tf.float32, unnormalized log
+        probabilities (logits) of the probabilistic predictions.
+      labels: Tensor, shape (nsamples,), tf.int32, the true class labels.  Each
+        element is in the range 0,..,nclasses-1.
+    """
+    tf.random.set_seed(1)
+
+    logits = 2.0*tf.random.normal((nsamples, nclasses))
+    py = tfp.distributions.Categorical(logits=logits)
+    labels = py.sample()
+
+    return logits, labels
+
+  def _generate_random_calibration_logits(self, nsamples, nclasses):
+    """Generate well distributed and poorly calibrated probabilities.
+
+    Args:
+      nsamples: int, >= 1, number of samples to generate.
+      nclasses: int, >= 2, number of classes.
+
+    Returns:
+      logits: Tensor, shape (nsamples, nclasses), tf.float32, unnormalized log
+        probabilities (logits) of the probabilistic predictions.
+      labels: Tensor, shape (nsamples,), tf.int32, the true class labels.  Each
+        element is in the range 0,..,nclasses-1.
+    """
+    tf.random.set_seed(1)
+
+    logits = 2.0*tf.random.normal((nsamples, nclasses))
+    py = tfp.distributions.Categorical(logits=logits)
+    labels = py.sample()
+    logits_other = 2.0*tf.random.normal((nsamples, nclasses))
+
+    return logits_other, labels
+
+  @parameterized.parameters(
+      (10, 2, 50000), (10, 5, 50000), (10, 50, 50000),
+  )
+  def test_expected_calibration_error_wellcalibrated(self, num_bins, nclasses,
+                                                     nsamples):
+    logits, labels = self._generate_perfect_calibration_logits(
+        nsamples, nclasses)
+    ece = um.expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels)
+    ece = float(ece)
+
+    logging.info("ECE (well-calibrated), num_bins=%d  nclasses=%d  "
+                 "nsamples=%d  ECE %.4f", num_bins, nclasses, nsamples, ece)
+
+    ece_tolerance = 0.01
+    self.assertLess(ece, ece_tolerance,
+                    msg="Expected calibration error (ECE) computed at %.4f "
+                    "for well-calibrated predictions exceeds "
+                    "tolerance of %.4f." % (ece, ece_tolerance))
+
+  @parameterized.parameters(
+      (10, 2, 50000), (10, 5, 50000), (10, 50, 50000),
+  )
+  def test_expected_calibration_error_uncalibrated(self, num_bins, nclasses,
+                                                   nsamples):
+    logits, labels = self._generate_random_calibration_logits(
+        nsamples, nclasses)
+    ece = um.expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels)
+    ece = float(ece)
+
+    logging.info("ECE (uncalibrated), num_bins=%d  nclasses=%d  "
+                 "nsamples=%d  ECE %.4f", num_bins, nclasses, nsamples, ece)
+
+    ece_lower = 0.2
+    self.assertGreater(ece, ece_lower,
+                       msg="Expected calibration error (ECE) computed at %.4f "
+                       "for well-calibrated predictions is smaller than "
+                       "minimum ECE of %.4f." % (ece, ece_lower))
+
+  def _bayesian_ece_q(self, num_bins, logits, labels, num_ece_samples=200):
+    bece_samples = um.bayesian_expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels,
+        num_ece_samples=num_ece_samples)
+
+    bece_q = tfp.stats.percentile(bece_samples, [1.0, 50.0, 99.0])
+    bece_q1 = bece_q[0]
+    bece_q50 = bece_q[1]
+    bece_q99 = bece_q[2]
+
+    return bece_q1, bece_q50, bece_q99
+
+  @parameterized.parameters(
+      (10, 2, 5), (10, 5, 50), (10, 50, 500),
+  )
+  def test_bayesian_ece(self, num_bins, nclasses, nsamples):
+    logits, labels = self._generate_perfect_calibration_logits(
+        nsamples, nclasses)
+    ece = um.expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels)
+
+    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
+
+    logging.info("Bayesian ECE (ECE check), num_bins=%d  nclasses=%d  "
+                 "nsamples=%d  ECE %.4f  BECE-50 %.4f", num_bins, nclasses,
+                 nsamples, ece, bq50)
+
+    self.assertGreater(ece, bq1, msg="ECE %.4f outside Bayesian 1-99 hpd "
+                       "region [%.4f,%.4f]." % (ece, bq1, bq99))
+    self.assertLess(ece, bq99, msg="ECE %.4f outside Bayesian 1-99 hpd "
+                    "region [%.4f,%.4f]." % (ece, bq1, bq99))
+
+  @parameterized.parameters(
+      (10, 2, 5000), (10, 50, 50000),
+  )
+  def test_bayesian_ece_wellcalibrated(self, num_bins, nclasses, nsamples):
+    logits, labels = self._generate_perfect_calibration_logits(
+        nsamples, nclasses)
+    ece = um.expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels)
+
+    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
+
+    logging.info("Bayesian ECE (well-calibrated), num_bins=%d  nclasses=%d  "
+                 "nsamples=%d  ECE %.4f  BECE-1/50/99 %.4f/%.4f/%.4f",
+                 num_bins, nclasses, nsamples, ece, bq1, bq50, bq99)
+
+    self.assertLess(bq99, 0.05, msg="BECE-99 %.4f too high for "
+                    "well-calibrated case, nsamples=%d" % (bq99, nsamples))
+
+  @parameterized.parameters(
+      (10, 2, 5000), (10, 50, 50000),
+  )
+  def test_bayesian_ece_uncalibrated(self, num_bins, nclasses, nsamples):
+    logits, labels = self._generate_random_calibration_logits(
+        nsamples, nclasses)
+    ece = um.expected_calibration_error(
+        num_bins, logits=logits, labels_true=labels)
+
+    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
+
+    logging.info("Bayesian ECE (uncalibrated), num_bins=%d  nclasses=%d  "
+                 "nsamples=%d  ECE %.4f  BECE-1/50/99 %.4f/%.4f/%.4f",
+                 num_bins, nclasses, nsamples, ece, bq1, bq50, bq99)
+
+    self.assertGreater(bq1, 0.1, msg="BECE-1 %.4f too low for "
+                       "uncalibrated case, nsamples=%d" % (bq1, nsamples))
+
+if __name__ == "__main__":
   tf.enable_v2_behavior()
   tf.test.main()

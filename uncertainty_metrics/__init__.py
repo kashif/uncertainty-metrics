@@ -15,9 +15,39 @@
 
 """Uncertainty Metrics."""
 
-import uncertainty_metrics.calibration
+import warnings
+from uncertainty_metrics import tensorflow
 import uncertainty_metrics.general_calibration_error
-import uncertainty_metrics.mutual_information
-import uncertainty_metrics.posterior_predictive_criteria
-import uncertainty_metrics.regression
-from uncertainty_metrics.tensorflow.calibration import ExpectedCalibrationError
+from uncertainty_metrics.general_calibration_error import ace
+from uncertainty_metrics.general_calibration_error import adaptive_calibration_error
+from uncertainty_metrics.general_calibration_error import ece
+from uncertainty_metrics.general_calibration_error import rmsce
+from uncertainty_metrics.general_calibration_error import root_mean_squared_calibration_error
+from uncertainty_metrics.general_calibration_error import sce
+from uncertainty_metrics.general_calibration_error import static_calibration_error
+from uncertainty_metrics.general_calibration_error import tace
+from uncertainty_metrics.general_calibration_error import thresholded_adaptive_calibration_error
+from uncertainty_metrics.tensorflow import *
+# from uncertainty_metrics.tensorflow import calibration
+# from uncertainty_metrics.tensorflow import mutual_information
+# from uncertainty_metrics.tensorflow import posterior_predictive_criteria
+# from uncertainty_metrics.tensorflow import regression
+# from uncertainty_metrics.tensorflow.metrics import ExpectedCalibrationError
+
+_allowed_symbols = [
+    "tensorflow",
+]
+
+for name in dir(tensorflow):
+  _allowed_symbols.append(name)
+
+try:
+  from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import,g-import-not-at-top
+except ImportError:
+  __all__ = _allowed_symbols
+  try:
+    import numpy as np  # pylint: disable=g-import-not-at-top,unused-import
+  except ImportError:
+    warnings.warn("TensorFlow backend not available for Uncertainty Metrics.")
+else:
+  remove_undocumented(__name__, _allowed_symbols)
