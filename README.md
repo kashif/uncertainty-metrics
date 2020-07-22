@@ -1,20 +1,57 @@
-# Metrics for evaluating probability models
+# Uncertainty Metrics
+The goal of this library is to provide an easy-to-use interface for both measuring uncertainty across Google and the open-source community.
 
-There is not yet a stable version (nor an official release of this library).
-All APIs are subject to change.
+Machine learning models often produce incorrect (over or under confident) probabilities. In real-world decision making systems, classification models must not only be accurate, but also should indicate when they are likely to be incorrect. For example, one important property is calibration: the idea that a model's predicted probabilities of outcomes reflect true probabilities of those outcomes. Intuitively, for class predictions, calibration means that if a model assigns a class with 90% probability, that class should appear 90% of the time.
 
-## Information Criteria
+## Usage
+We access Uncertainty Metrics via `import uncertainty_metrics as um`.
 
-* Widely Applicable Information Criterion (WAIC), type 1 and type 2
-* Importance-Sampling Cross Validation (ISCV)
+## Support
+We support the following calibration metrics:
 
-## Proper Scoring Rules
+- Expected Calibration Error [3]
+- Root-Mean-Squared Calibration Error [14]
+- Static Calibration Error [2]
+- Adaptive Calibration Error / Thresholded Adaptive Calibration Error [2]
+- General Calibration Error (a space of calibration metrics) [2]
+- Class-conditional / Class-conflationary versions of all of the above. [2]
+- Bayesian Expected Calibration Error
+- Semiparametric Calibration Error
 
-* Categorical Brier score
-* Univariate Continuous Ranked Probability Score (CRPS)
+We also support:
+- Brier Score
+- Brier Decomposition
+- Model Uncertainty
+- Negative Widely Applicable Information Criterion
+- Importance Sampling Cross Validation
+- Continuous Ranked Probability Score
 
+## To add a new metric:
+1. Add the paper reference to the `References` section below.
+2. Add the metric definition to the numpy/ dir for a numpy based metric or to the tensorflow/ dir for a tensorflow based metric.
+. Every file should have a subclass of `datasets.base.BaseDataset`, which at a minimum requires implementing a constructor, `_read_examples`, and `_create_process_example_fn`.
+3. Add the metric class or function to the corresponding __init__.py file.
+4. Add a test that at a minimum implements the metric using 'import uncertainty_metrics as um' and um.*your metric* and checks that the value is in the appropriate range.
 
-## An example on how to diagnose miscalibration.
+## Expected Calibration Error Example
+'''
+import uncertainty_metrics as um
+
+probabilities = ...
+labels = ...
+ece = um.ece(labels, probabilities, num_bins=30)
+'''
+
+## Reliability Diagram Example
+'''
+import uncertainty_metrics as um
+
+probabilities = ...
+labels = ...
+diagram = um.reliability_diagram(labels, probabilities)
+'''
+
+## An example of how to diagnose miscalibration.
 
 Calibration is one of the most important properties of a trained model beyond accuracy. We demonsrate how to calculate calibration measure and diagnose miscalibration with the help of this library. One typical measure of calibration is Expected Calibration Error (ECE)
 ([Guo et al., 2017](https://arxiv.org/pdf/1706.04599.pdf)). To calculate ECE, we group predictions into M bins (M=15 in our example) according to their confidence, which *in ECE is* the value of the max softmax output, and compute the accuracy in each bin. Let B_m be the set of examples whose predicted confidence falls into the m th interval. The Acc and the Conf of bin B_m is
@@ -32,7 +69,7 @@ We focus on the calibration (measured by ECE) of Mixup + BatchEnsemble ([Wen et 
 
 ```python
 import tensorflow as tf
-from uncertainty_metrics import general_calibration_error
+import uncertainty_metrics as um
 
 # Load and preprocess a dataset. Also load the model.
 test_images, test_labels = ...
@@ -45,9 +82,9 @@ ensemble_probs = tf.reduce_mean(model, axis=0)
 # Calculate individual calibration error.
 individual_eces = []
 for i in range(ensemble_size):
-  individual_eces.append(general_calibration_error.ece(probs[i], labels, num_bins=15))
+  individual_eces.append(um.ece(probs[i], labels, num_bins=15))
   
-ensemble_ece = general_calibration_error.ece(ensemble_probs, labels, num_bins=15)
+ensemble_ece = um.ece(ensemble_probs, labels, num_bins=15)
 ```
 
 We collect the ECE in the following table.
@@ -65,7 +102,7 @@ We collect the ECE in the following table.
 In the above table, ***In*** stands for individual model; ***En*** stands for ensemble models. ***Mixup0.2*** stands for small mixup augmentation while ***mixup1*** stands for strong mixup augmentation. Ensemble typically improves both accuracy and calibration, but this does not apply to mixup. Scalars obsure useful information, so we try to understand more insights by examining the per-bin result.
 
 ```python
-ensemble_metric = general_calibration_error.GeneralCalibrationError(
+ensemble_metric = um.GeneralCalibrationError(
     num_bins=15,
     binning_scheme='even',
     class_conditional=False,
@@ -73,7 +110,7 @@ ensemble_metric = general_calibration_error.GeneralCalibrationError(
     norm='l1')
 ensemble_metric.update_state(ensemble_probs, labels)
 
-individual_metric = general_calibration_error.GeneralCalibrationError(
+individual_metric = um.GeneralCalibrationError(
     num_bins=15,
     binning_scheme='even',
     class_conditional=False,
@@ -90,3 +127,25 @@ individual_reliability = (
 Now we can plot the reliability diagram which demonstrates more details of calibration. The backbone model in the following figure is BatchEnsemble with ensemble size 4. The plot has 6 lines: we trained three independent BatchEnsemble models with large, small, and no Mixup; and for each model, we compute the calibration of both ensemble and individual predictions. The plot shows that only Mixup models have positive (Acc - Conf) values on the test set, which suggests that Mixup encourages underconfidence. Mixup ensemble's positive value is also greater than Mixup individual's. This suggests that Mixup ensembles compound in encouraging underconfidence, leading to worse calibration than when not ensembling. Therefore, we successfully find the reason why Mixup+Ensemble leads to worse calibration, by leveraging this library.
 
 <img src="https://drive.google.com/uc?export=view&id=1M-raNJyzsNBHhGuPoVfSmUtrSKOLPx3U" width="750"/>
+
+
+## Stability
+There is not yet a stable version (nor an official release of this library).
+All APIs are subject to change.
+
+## References
+
+[1] Guo, C., Pleiss, G., Sun, Y., & Weinberger, K. Q. (2017, August). On calibration of modern neural networks. In Proceedings of the 34th International Conference on Machine Learning. Paper Link.
+[2] Nixon, J., Dusenberry, M. W., Zhang, L., Jerfel, G., & Tran, D. (2019). Measuring Calibration in Deep Learning. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops (pp. 38-41). Paper Link.
+[3] Naeini, Mahdi Pakdaman, Gregory Cooper, and Milos Hauskrecht. "Obtaining well calibrated probabilities using bayesian binning." Twenty-Ninth AAAI Conference on Artificial Intelligence. 2015. Paper Link.
+[4] Naeini, Mahdi Pakdaman, Gregory F. Cooper, and Milos Hauskrecht. "Binary classifier calibration using a Bayesian non-parametric approach." Proceedings of the 2015 SIAM International Conference on Data Mining. Society for Industrial and Applied Mathematics, 2015. Paper Link.
+[5] J. Platt. Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods. Advances in Large Margin Classifiers, 10(3):61–74, 1999. Paper Link.
+[6] Kumar, A., Liang, P. S., & Ma, T. (2019). Verified uncertainty calibration. In Advances in Neural Information Processing Systems (pp. 3787-3798). Paper Link.
+[7] Kumar, A., Sarawagi, S., & Jain, U. (2018, July). Trainable calibration measures for neural networks from kernel mean embeddings. In International Conference on Machine Learning (pp. 2805-2814). Paper Link.
+[8] Calibrating Neural Networks Documentation. Link.
+[9] Zadrozny, Bianca, and Charles Elkan. "Transforming classifier scores into accurate multiclass probability estimates." Proceedings of the eighth ACM SIGKDD international conference on Knowledge discovery and data mining. 2002. Paper Link.
+[10] Müller, Rafael, Simon Kornblith, and Geoffrey E. Hinton. "When does label smoothing help?." Advances in Neural Information Processing Systems. 2019. Paper Link.
+[11] Pereyra, Gabriel, et al. "Regularizing neural networks by penalizing confident output distributions." arXiv preprint arXiv:1701.06548 (2017). Paper Link.
+[12] Lakshminarayanan, B., Pritzel, A., and Blundell, C. Simple and scalable predictive uncertainty estimation using deep ensembles. In NIPS, pp. 6405–6416. 2017. Paper Link.
+[13] Louizos, C. and Welling, M. Multiplicative normalizing flows for variational Bayesian neural networks. In ICML, volume 70, pp. 2218–2227, 2017. Paper Link.
+[14] Hendrycks, D., Mu, N., Cubuk, E. D., Zoph, B., Gilmer, J., & Lakshminarayanan, B. (2019). AugMix: A Simple Data Processing Method to Improve Robustness and Uncertainty. Paper Link.

@@ -190,7 +190,7 @@ class GeneralCalibrationError():
     else:
       return np.sum(np.square(weighted_calibration_error))
 
-  def update_state(self, probs, labels):
+  def update_state(self, labels, probs):
     """Updates the value of the General Calibration Error."""
 
     # if self.calibration_error is not None and
@@ -279,8 +279,8 @@ class GeneralCalibrationError():
     self.calibration_error = None
 
 
-def gce(probs,
-        labels,
+def gce(labels,
+        probs,
         binning_scheme,
         max_prob,
         class_conditional,
@@ -296,23 +296,23 @@ def gce(probs,
   definitions of most of these terms, see [1].
 
   To implement Expected Calibration Error [2]:
-  gce(probs, labels, binning_scheme='even', class_conditional=False,
+  gce(labels, probs, binning_scheme='even', class_conditional=False,
     max_prob=True, error='l1')
 
   To implement Static Calibration Error [1]:
-  gce(probs, labels, binning_scheme='even', class_conditional=False,
+  gce(labels, probs, binning_scheme='even', class_conditional=False,
     max_prob=False, error='l1')
 
   To implement Root Mean Squared Calibration Error [3]:
-  gce(probs, labels, binning_scheme='adaptive', class_conditional=True,
+  gce(labels, probs, binning_scheme='adaptive', class_conditional=True,
     max_prob=False, error='l2', datapoints_per_bin=100)
 
   To implement Adaptive Calibration Error [1]:
-  gce(probs, labels, binning_scheme='adaptive', class_conditional=True,
+  gce(labels, probs, binning_scheme='adaptive', class_conditional=True,
     max_prob=False, error='l1')
 
   To implement Thresholded Adaptive Calibration Error [1]:
-  gce(probs, labels, binning_scheme='adaptive', class_conditional=True,
+  gce(labels, probs, binning_scheme='adaptive', class_conditional=True,
     max_prob=False, error='l1', threshold=0.01)
 
   ### References
@@ -334,9 +334,9 @@ def gce(probs,
   https://arxiv.org/pdf/1812.04606.pdf
 
   Args:
+    labels: np.ndarray of shape [N, ] array of correct labels.
     probs: np.ndarray of shape [N, M] where N is the number of datapoints
       and M is the number of predicted classes.
-    labels: np.ndarray of shape [N, ] array of correct labels.
     binning_scheme: String, either 'even' (for even spacing) or 'adaptive'
       (for an equal number of datapoints in each bin).
     max_prob: Boolean, 'True' to measure calibration only on the maximum
@@ -364,17 +364,17 @@ def gce(probs,
                                    norm=norm,
                                    threshold=threshold,
                                    datapoints_per_bin=datapoints_per_bin)
-  metric.update_state(probs, labels)
+  metric.update_state(labels, probs)
   return metric.result()
 
 
 general_calibration_error = gce
 
 
-def ece(probs, labels, num_bins=30):
+def ece(labels, probs, num_bins=30):
   """Implements Expected Calibration Error."""
-  return gce(probs,
-             labels,
+  return gce(labels,
+             probs,
              binning_scheme='even',
              max_prob=True,
              class_conditional=False,
@@ -382,10 +382,10 @@ def ece(probs, labels, num_bins=30):
              num_bins=num_bins)
 
 
-def rmsce(probs, labels, num_bins=30, datapoints_per_bin=100):
+def rmsce(labels, probs, num_bins=30, datapoints_per_bin=100):
   """Implements Root Mean Squared Calibration Error."""
-  return gce(probs,
-             labels,
+  return gce(labels,
+             probs,
              binning_scheme='adaptive',
              max_prob=True,
              class_conditional=False,
@@ -396,10 +396,10 @@ def rmsce(probs, labels, num_bins=30, datapoints_per_bin=100):
 root_mean_squared_calibration_error = rmsce
 
 
-def sce(probs, labels, num_bins=30):
+def sce(labels, probs, num_bins=30):
   """Implements Static Calibration Error."""
-  return gce(probs,
-             labels,
+  return gce(labels,
+             probs,
              binning_scheme='even',
              max_prob=False,
              class_conditional=True,
@@ -409,10 +409,10 @@ def sce(probs, labels, num_bins=30):
 static_calibration_error = sce
 
 
-def ace(probs, labels, num_bins=30):
+def ace(labels, probs, num_bins=30):
   """Implements Adaptive Calibration Error."""
-  return gce(probs,
-             labels,
+  return gce(labels,
+             probs,
              binning_scheme='adaptive',
              max_prob=False,
              class_conditional=True,
@@ -422,10 +422,10 @@ def ace(probs, labels, num_bins=30):
 adaptive_calibration_error = ace
 
 
-def tace(probs, labels, num_bins=30, threshold=0.01):
+def tace(labels, probs, num_bins=30, threshold=0.01):
   """Implements Thresholded Adaptive Calibration Error."""
-  return gce(probs,
-             labels,
+  return gce(labels,
+             probs,
              binning_scheme='adaptive',
              max_prob=False,
              class_conditional=True,

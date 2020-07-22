@@ -15,30 +15,22 @@
 
 """Uncertainty Metrics."""
 
+# pylint: disable=g-import-not-at-top
 import warnings
+import uncertainty_metrics
+from uncertainty_metrics import numpy
 from uncertainty_metrics import tensorflow
-import uncertainty_metrics.general_calibration_error
-from uncertainty_metrics.general_calibration_error import ace
-from uncertainty_metrics.general_calibration_error import adaptive_calibration_error
-from uncertainty_metrics.general_calibration_error import ece
-from uncertainty_metrics.general_calibration_error import rmsce
-from uncertainty_metrics.general_calibration_error import root_mean_squared_calibration_error
-from uncertainty_metrics.general_calibration_error import sce
-from uncertainty_metrics.general_calibration_error import static_calibration_error
-from uncertainty_metrics.general_calibration_error import tace
-from uncertainty_metrics.general_calibration_error import thresholded_adaptive_calibration_error
+from uncertainty_metrics.numpy import *
 from uncertainty_metrics.tensorflow import *
-# from uncertainty_metrics.tensorflow import calibration
-# from uncertainty_metrics.tensorflow import mutual_information
-# from uncertainty_metrics.tensorflow import posterior_predictive_criteria
-# from uncertainty_metrics.tensorflow import regression
-# from uncertainty_metrics.tensorflow.metrics import ExpectedCalibrationError
 
 _allowed_symbols = [
     "tensorflow",
+    "numpy",
 ]
 
 for name in dir(tensorflow):
+  _allowed_symbols.append(name)
+for name in dir(numpy):
   _allowed_symbols.append(name)
 
 try:
@@ -46,7 +38,7 @@ try:
 except ImportError:
   __all__ = _allowed_symbols
   try:
-    import numpy as np  # pylint: disable=g-import-not-at-top,unused-import
+    import numpy as np  # pylint: disable=g-statement-before-imports
   except ImportError:
     warnings.warn("TensorFlow backend not available for Uncertainty Metrics.")
 else:

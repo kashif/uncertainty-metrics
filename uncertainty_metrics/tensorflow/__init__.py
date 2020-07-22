@@ -24,6 +24,7 @@ try:  # pylint: disable=g-statement-before-imports
 except ImportError:
   pass
 else:
+  from uncertainty_metrics.tensorflow.auc import AUC
   from uncertainty_metrics.tensorflow import calibration
   from uncertainty_metrics.tensorflow.calibration import brier_decomposition
   from uncertainty_metrics.tensorflow.calibration import expected_calibration_error
@@ -42,6 +43,7 @@ else:
   from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
   _allowed_symbols = [
+      "AUC",
       "calibration",
       "brier_decomposition",
       "expected_calibration_error",
