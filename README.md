@@ -1,5 +1,5 @@
 # Uncertainty Metrics
-The goal of this library is to provide an easy-to-use interface for both measuring uncertainty across Google and the open-source community.
+The goal of this library is to provide an easy-to-use interface for measuring uncertainty across Google and the open-source community.
 
 Machine learning models often produce incorrect (over or under confident) probabilities. In real-world decision making systems, classification models must not only be accurate, but also should indicate when they are likely to be incorrect. For example, one important property is calibration: the idea that a model's predicted probabilities of outcomes reflect true probabilities of those outcomes. Intuitively, for class predictions, calibration means that if a model assigns a class with 90% probability, that class should appear 90% of the time.
 
