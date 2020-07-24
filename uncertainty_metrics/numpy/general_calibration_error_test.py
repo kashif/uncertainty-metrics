@@ -15,7 +15,6 @@
 
 # Lint as: python3
 """Tests for general calibration error.
-
 """
 
 import itertools
@@ -55,6 +54,40 @@ class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
         labels, probs, num_bins=30, binning_scheme='even',
         class_conditional=False, max_prob=True, norm='l1')
     self.assertAlmostEqual(calibration_error, 0.18124999999999997)
+
+  def test_correctness(self):
+    num_bins = 10
+    pred_probs = [
+        [0.31, 0.32, 0.27],
+        [0.37, 0.33, 0.30],
+        [0.30, 0.31, 0.39],
+        [0.61, 0.38, 0.01],
+        [0.10, 0.65, 0.25],
+        [0.91, 0.05, 0.04],
+    ]
+    # max_pred_probs: [0.32, 0.37, 0.39, 0.61, 0.65, 0.91]
+    # pred_class: [1, 0, 2, 0, 1, 0]
+    labels = [1., 0, 0., 1., 0., 0.]
+    n = len(pred_probs)
+
+    # Bins for the max predicted probabilities are (0, 0.1), [0.1, 0.2), ...,
+    # [0.9, 1) and are numbered starting at zero.
+    bin_counts = [0, 0, 0, 3, 0, 0, 2, 0, 0, 1]
+    bin_correct_sums = [0, 0, 0, 2, 0, 0, 0, 0, 0, 1]
+    bin_prob_sums = [0, 0, 0, 0.32 + 0.37 + 0.39, 0, 0, 0.61 + 0.65, 0, 0, 0.91]
+
+    correct_ece = 0.
+    bin_accs = [0.] * num_bins
+    bin_confs = [0.] * num_bins
+    for i in range(num_bins):
+      if bin_counts[i] > 0:
+        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
+        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
+        correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
+
+    self.assertAlmostEqual(correct_ece,
+                           um.ece([int(i) for i in labels],
+                                  np.array(pred_probs)))
 
   def generate_params():  # pylint: disable=no-method-argument
     # 'self' object cannot be passes to parameterized.
