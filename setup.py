@@ -27,7 +27,7 @@ setup(
                   'scipy>=1.0.0',
                   'sklearn>=0.20.0'],
         'tensorflow': ['tensorflow>=2.0.0',
-                       'tensorflow_probability>=0.9.1',],
+                       'tensorflow_probability>=0.6.0',],
         'tf-nightly': ['tf-nightly'],
         'tests': [
             'absl-py>=0.5.0',
