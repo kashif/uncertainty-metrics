@@ -34,6 +34,7 @@ setup(
         'tf-nightly': ['tf-nightly'],
         'tests': [
             'absl-py>=0.5.0',
+            'pylint>=1.9.0',
         ],
     },
     classifiers=[
