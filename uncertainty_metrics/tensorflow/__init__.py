@@ -21,6 +21,7 @@
 # pylint: disable=g-import-not-at-top
 try:  # pylint: disable=g-statement-before-imports
   import tensorflow as tf  # pylint: disable=unused-import
+import tensorflow_probability as tfp
 except ImportError:
   pass
 else:
