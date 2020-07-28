@@ -194,8 +194,9 @@ class CensoredCalibrationError(object):
     times = self._get_times(study_times)
 
     censoring_cum_hazard_increments, survival_curve_censoring, cond_mean,\
-        compensator = self._get_calibration_function(
-        local_outcome_process, local_censoring_process, local_at_risk)
+        compensator = self._get_calibration_function(local_outcome_process,
+                                                     local_censoring_process,
+                                                     local_at_risk)
     accs = cond_mean[:, 0]
 
     # Influence function of IPCW
