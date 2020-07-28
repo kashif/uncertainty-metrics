@@ -31,7 +31,16 @@ setup(
                        'numpy>=1.7',
                        'scipy>=1.0.0',
                        'scikit-learn>=0.20.0'],
-        'tf-nightly': ['tf-nightly'],
+        'tf-nightly': ['tf-nightly',
+                       'numpy>=1.7',
+                       'matplotlib>=2.0.0',
+                       'scipy>=1.0.0',
+                       'scikit-learn>=0.20.0'
+                       'tensorflow>=2.0.0',
+                       'tensorflow_probability>=0.9',
+                       'numpy>=1.7',
+                       'scipy>=1.0.0',
+                       'scikit-learn>=0.20.0'],
         'tests': [
             'absl-py>=0.5.0',
             'pylint>=1.9.0',
