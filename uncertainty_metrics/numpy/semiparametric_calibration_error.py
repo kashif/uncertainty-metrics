@@ -128,7 +128,7 @@ class SemiparametricCalibrationError(object):
                             probs,
                             labels,
                             hyperparam_range=None):
-    """Low bias estimate of L2 calibration error w/ smoothing instead of bins."""
+    """Low bias estimate of L2 calibration error w/ smoothing, not bins."""
     est, _ = self._calculate_calibration_error_crossfit(
         probs, labels, hyperparam_range=hyperparam_range)
     return est
@@ -149,7 +149,7 @@ class SemiparametricCalibrationError(object):
 
   def _calculate_calibration_error_crossfit(self, probs, labels,
                                             hyperparam_range=None):
-    """Compute calib error using optimal hyperparams for calibration function."""
+    """Compute calib error using best hyperparams for calibration function."""
     if hyperparam_range is None:
       if self.smoothing == 'spline':
         w = self.weight_function(probs)
@@ -207,7 +207,7 @@ class SemiparametricCalibrationError(object):
     return accs
 
   def _choose_opt_calibration_hyperparam(self, probs, labels, hyperparam_range):
-    """Gets optimal prediction hyperparam from list of possibilies in hyperparam_range."""
+    """Gets optimal prediction hyperparam from list hyperparam_range."""
     weights = self.weight_function(probs)
     weights /= np.mean(weights)
 
@@ -226,7 +226,7 @@ class SemiparametricCalibrationError(object):
     return best_hyperparam
 
   def _get_undersmoothed_hyperparam(self, probs, labels, hyperparam_range):
-    """Adjust optimal hyperparam to work better for semiparametric estimation."""
+    """Adjust optimal hyperparam to work for semiparametric estimation."""
     # The optimal hyperparams for prediction of accuracy with the calibration
     # function are generally more smooth than one wants when plugging them in to
     # a semiparametric estimator. This takes the optimal hyperparams for

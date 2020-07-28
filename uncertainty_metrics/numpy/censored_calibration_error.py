@@ -92,7 +92,7 @@ class StratifiedSurvivalKFold(StratifiedKFold):
 
 
 class CensoredCalibrationError(object):
-  """Class implementing Semiparametric Calibration Error with Right-Censoring."""
+  """Semiparametric Calibration Error with Right-Censoring."""
 
   def __init__(self,
                end_time,
@@ -193,7 +193,8 @@ class CensoredCalibrationError(object):
     n = probs.shape[0]
     times = self._get_times(study_times)
 
-    censoring_cum_hazard_increments, survival_curve_censoring, cond_mean, compensator = self._get_calibration_function(
+    censoring_cum_hazard_increments, survival_curve_censoring, cond_mean,\
+        compensator = self._get_calibration_function(
         local_outcome_process, local_censoring_process, local_at_risk)
     accs = cond_mean[:, 0]
 
@@ -262,7 +263,7 @@ class CensoredCalibrationError(object):
                             times,
                             event,
                             hyperparam_range=None):
-    """Low bias estimate of L2 calibration error w/ smoothing instead of bins."""
+    """Low bias estimate of L2 calibration error w/ smoothing, not bins."""
     est, _ = self._calculate_calibration_error_crossfit(
         probs, times, event, hyperparam_range=hyperparam_range)
     return est
@@ -283,7 +284,7 @@ class CensoredCalibrationError(object):
 
   def _calculate_calibration_error_crossfit(self, probs, study_times, events,
                                             hyperparam_range=None):
-    """Compute calib error using optimal hyperparams for calibration function."""
+    """Compute calib error w/ optimal hyperparams for calibration function."""
 
     if hyperparam_range is None:
       scale_lower, scale_upper = self.default_hyperparam_range
@@ -425,7 +426,7 @@ class CensoredCalibrationError(object):
 
   def _choose_opt_calibration_hyperparam(self, probs, time, event,
                                          hyperparam_range):
-    """Gets optimal prediction hyperparam from list of possibilies in hyperparam_range."""
+    """Gets optimal prediction hyperparam from list of hyperparam_range."""
     weights = self.weight_function(probs)
     weights /= np.mean(weights)
 
@@ -458,7 +459,7 @@ class CensoredCalibrationError(object):
 
   def _get_undersmoothed_hyperparam(self, probs, times, event,
                                     hyperparam_range):
-    """Adjust optimal hyperparam to work better for semiparametric estimation."""
+    """Adjust optimal hyperparam to work for semiparametric estimation."""
     # The optimal hyperparams for prediction of accuracy with the calibration
     # function are generally more smooth than one wants when plugging them in to
     # a semiparametric estimator. This takes the optimal hyperparams for
