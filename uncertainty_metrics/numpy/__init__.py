@@ -18,6 +18,9 @@
 # pylint: disable=g-import-not-at-top
 try:
   import numpy as np  # pylint: disable=unused-import
+  import matplotlib.pyplot
+  import scipy
+  import sklearn
 except ImportError:
   pass
 else:
