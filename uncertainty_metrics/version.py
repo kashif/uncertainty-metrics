@@ -15,5 +15,5 @@
 
 """Package version."""
 
-__version__ = '0.0.7'
+__version__ = '0.0.71'
 VERSION = __version__
