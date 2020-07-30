@@ -19,10 +19,6 @@ Uncertainty in predictions due to model uncertainty can be assessed via
 measures of the spread, or `disagreement` of an ensemble.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow.compat.v1 as tf  # tf
 
 
