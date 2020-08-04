@@ -15,7 +15,7 @@ setup(
     name='uncertainty_metrics',
     version=__version__,
     description='Uncertainty Metrics',
-    author='Uncertainty Metrics Users',
+    author='Uncertainty Metrics Team',
     author_email='jeremynixon@google.com',
     url='http://github.com/google/uncertainty_metrics',
     license='Apache 2.0',
