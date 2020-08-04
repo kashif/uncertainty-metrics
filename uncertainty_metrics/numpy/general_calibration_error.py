@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 The uncertainty_metrics Authors.
+# Copyright 2020 The Uncertainty Metrics Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,16 +17,7 @@
 """General metric defining the parameterized space of calibration metrics.
 """
 
-import bisect
-import math
-
 import numpy as np
-
-
-def to_bins(values, bin_lower_bounds):
-  """Use binary search to find the appropriate bin for each value."""
-  return np.array([
-      bisect.bisect_left(bin_lower_bounds, value)-1 for value in values])
 
 
 def one_hot_encode(labels, num_classes=None):
@@ -46,25 +37,27 @@ def mean(inputs):
 
 
 def get_adaptive_bins(predictions, num_bins):
-  """Returns lower bounds for binning an equal number of datapoints per bin."""
+  """Returns upper edges for binning an equal number of datapoints per bin."""
+  if np.size(predictions) == 0:
+    return np.linspace(0, 1, num_bins+1)[:-1]
 
-  sorted_predictions = np.sort(predictions)
-  # Compute switching point to handle the remainder when allocating the number
-  # of examples equally across bins. Up to the switching index, bins use
-  # ceiling to round up; after the switching index, bins use floor.
-  examples_per_bin = sorted_predictions.shape[0] / float(num_bins)
-  switching_index = int(math.floor((examples_per_bin % 1) * num_bins))
-  indices = []
-  index = 0
-  while index < sorted_predictions.shape[0]:
-    indices.append(index)
-    if index < switching_index:
-      index += int(math.ceil(examples_per_bin))
-    else:
-      index += int(math.floor(examples_per_bin))
-  indices = np.array(indices)
-  bins = sorted_predictions[indices.astype(np.int32)]
-  return bins
+  edge_indices = np.linspace(0, len(predictions), num_bins, endpoint=False)
+
+  # Round into integers for indexing. If num_bins does not evenly divide
+  # len(predictions), this means that bin sizes will alternate between SIZE and
+  # SIZE+1.
+  edge_indices = np.round(edge_indices).astype(int)
+
+  # If there are many more bins than data points, some indices will be
+  # out-of-bounds by one. Set them to be within bounds:
+  edge_indices = np.minimum(edge_indices, len(predictions) - 1)
+
+  # Obtain the edge values:
+  edges = np.sort(predictions)[edge_indices]
+
+  # Following the convention of numpy.digitize, we do not include the leftmost
+  # edge (i.e. return the upper bin edges):
+  return edges[1:]
 
 
 def binary_converter(probs):
@@ -172,17 +165,23 @@ class GeneralCalibrationError():
     self.calibration_error = None
     self.calibration_errors = None
 
-  def get_calibration_error(self, probs, labels, bin_lower_bounds, norm,
+  def get_calibration_error(self, probs, labels, bin_upper_bounds, norm,
                             num_bins):
     """Given a binning scheme, returns sum weighted calibration error."""
-    bins = to_bins(probs, bin_lower_bounds)
-    self.confidences = np.nan_to_num(
-        np.array([mean(probs[bins == i]) for i in range(num_bins)]))
-    counts = np.array(
-        [len(probs[bins == i]) for i in range(num_bins)])
-    self.accuracies = np.nan_to_num(
-        np.array([mean(labels[bins == i]) for i in range(num_bins)]))
+    if np.size(probs) == 0:
+      return 0.
+
+    bin_indices = np.digitize(probs, bin_upper_bounds)
+    sums = np.bincount(bin_indices, weights=probs, minlength=num_bins)
+    sums = sums.astype(np.float64)  # In case all probs are 0/1.
+    counts = np.bincount(bin_indices, minlength=num_bins)
+    counts = counts + np.finfo(sums.dtype).eps  # Avoid division by zero.
+    self.confidences = sums / counts
+    self.accuracies = np.bincount(
+        bin_indices, weights=labels, minlength=num_bins) / counts
+
     self.calibration_errors = self.accuracies-self.confidences
+
     weighting = counts / float(len(probs.flatten()))
     weighted_calibration_error = self.calibration_errors * weighting
     if norm == 'l1':
@@ -221,7 +220,8 @@ class GeneralCalibrationError():
             "To set datapoints_per_bin, binning_scheme must be 'adaptive'.")
 
     if self.binning_scheme == 'even':
-      bin_lower_bounds = [float(i)/self.num_bins for i in range(self.num_bins)]
+      bin_upper_bounds = np.histogram_bin_edges(
+          [], bins=self.num_bins, range=(0.0, 1.0))[1:]
 
     # When class_conditional is False, different classes are conflated.
     if not self.class_conditional:
@@ -232,9 +232,9 @@ class GeneralCalibrationError():
       labels_matrix = labels_matrix[probs > self.threshold]
       probs = probs[probs > self.threshold]
       if self.binning_scheme == 'adaptive':
-        bin_lower_bounds = get_adaptive_bins(probs, self.num_bins)
+        bin_upper_bounds = get_adaptive_bins(probs, self.num_bins)
       calibration_error = self.get_calibration_error(
-          probs.flatten(), labels_matrix.flatten(), bin_lower_bounds, self.norm,
+          probs.flatten(), labels_matrix.flatten(), bin_upper_bounds, self.norm,
           self.num_bins)
 
     # If class_conditional is true, predictions from different classes are
@@ -249,9 +249,9 @@ class GeneralCalibrationError():
           labels = labels[probs_slice > self.threshold]
           probs_slice = probs_slice[probs_slice > self.threshold]
           if self.binning_scheme == 'adaptive':
-            bin_lower_bounds = get_adaptive_bins(probs_slice, self.num_bins)
+            bin_upper_bounds = get_adaptive_bins(probs_slice, self.num_bins)
           calibration_error = self.get_calibration_error(
-              probs_slice, labels, bin_lower_bounds, self.norm, self.num_bins)
+              probs_slice, labels, bin_upper_bounds, self.norm, self.num_bins)
           class_calibration_error_list.append(calibration_error/num_classes)
         else:
           # In the case where we use all datapoints,
@@ -261,9 +261,9 @@ class GeneralCalibrationError():
           labels = labels[probs_slice > self.threshold]
           probs_slice = probs_slice[probs_slice > self.threshold]
           if self.binning_scheme == 'adaptive':
-            bin_lower_bounds = get_adaptive_bins(probs_slice, self.num_bins)
+            bin_upper_bounds = get_adaptive_bins(probs_slice, self.num_bins)
           calibration_error = self.get_calibration_error(
-              probs_slice, labels, bin_lower_bounds, self.norm, self.num_bins)
+              probs_slice, labels, bin_upper_bounds, self.norm, self.num_bins)
           class_calibration_error_list.append(calibration_error/num_classes)
       calibration_error = np.sum(class_calibration_error_list)
 

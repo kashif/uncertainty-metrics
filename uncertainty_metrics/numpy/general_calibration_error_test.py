@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 The uncertainty_metrics Authors.
+# Copyright 2020 The Uncertainty Metrics Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,50 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import uncertainty_metrics as um
+from uncertainty_metrics.numpy.general_calibration_error import get_adaptive_bins
+
+
+def _get_adaptive_bins_test_parameters():
+  np.random.seed(0)
+  predictions = np.random.rand(500)
+  # Test small number of bins:
+  for num_bins in range(1, 50):
+    yield {'predictions': predictions, 'num_bins': num_bins}
+  # Test large numbers of bins, including ones where some bins are empty:
+  for num_bins in range(495, 505):
+    yield {'predictions': predictions, 'num_bins': num_bins}
+  # Test where most bins are empty:
+  yield {'predictions': np.random.rand(5), 'num_bins': 30}
+
+
+def _get_bin_counts(predictions, num_bins):
+  bin_edges = get_adaptive_bins(predictions, num_bins)
+  # Bins should work with np.digitize:
+  bin_indices = np.digitize(predictions, bin_edges)
+  return np.bincount(bin_indices)
+
+
+class GetAdaptiveBinsTest(parameterized.TestCase, absltest.TestCase):
+
+  @parameterized.parameters(_get_adaptive_bins_test_parameters())
+  def test_number_of_bins(self, predictions, num_bins):
+    bin_counts = _get_bin_counts(predictions, num_bins)
+    self.assertLen(bin_counts, num_bins)
+
+  @parameterized.parameters(_get_adaptive_bins_test_parameters())
+  def test_bins_include_all_datapoints(self, predictions, num_bins):
+    bin_counts = _get_bin_counts(predictions, num_bins)
+    self.assertLen(
+        predictions, sum(bin_counts),
+        msg='Sum of bin counts does not match length of predictions '
+        f'({len(predictions)}): {bin_counts}')
+
+  @parameterized.parameters(_get_adaptive_bins_test_parameters())
+  def test_bins_have_similar_size(self, predictions, num_bins):
+    bin_counts = _get_bin_counts(predictions, num_bins)
+    self.assertAlmostEqual(
+        np.max(bin_counts), np.min(bin_counts), delta=1,
+        msg=f'Bin counts should differ by at most 1 but are {bin_counts}')
 
 
 class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
@@ -109,11 +153,11 @@ class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
   @parameterized.parameters(generate_params())
   def test_generatable_metrics(self, class_conditional, threshold, max_probs,
                                norm, binning_scheme):
-    probs = np.array([[0.42610548, 0.41748077, 0.15641374],
-                      [0.44766216, 0.47721294, 0.0751249],
-                      [0.1862702, 0.15139402, 0.66233578],
-                      [0.05753544, 0.8561222, 0.08634236],
-                      [0.18697925, 0.29836466, 0.51465609]])
+    probs = np.array([[0.42610548, 0.41748077, 0.15641374, 0],
+                      [0.44766216, 0.47721294, 0.0751249, 0],
+                      [0.1862702, 0.15139402, 0.66233578, 0],
+                      [0.05753544, 0.8561222, 0.08634236, 0],
+                      [0.18697925, 0.29836466, 0.51465609, 0]])
 
     labels = np.array([0, 1, 2, 1, 2])
     calibration_error = um.general_calibration_error(
