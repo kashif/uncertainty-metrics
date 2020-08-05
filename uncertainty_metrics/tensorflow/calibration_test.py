@@ -123,20 +123,6 @@ class CalibrationTest(parameterized.TestCase, tf.test.TestCase):
                                         tolerance,
                                         perturbations[i-1], perturbations[i]))
 
-  def test_expected_calibration_error(self):
-    probs = tf.convert_to_tensor([[0.3, 0.7], [0.9, 0.1], [0.4, 0.6]])
-    logits = tf.math.log(probs)
-    labels = tf.convert_to_tensor([1, 0, 0], dtype=tf.int32)
-
-    ece = um.expected_calibration_error(
-        3, logits=logits, labels_true=labels)
-    ece = float(ece)
-    ece_true = 0.33333333
-
-    self.assertAlmostEqual(ece, ece_true, places=6,
-                           msg="Computed ECE (%.5f) does not match "
-                           "true ECE (%.5f)." % (ece, ece_true))
-
   def _generate_perfect_calibration_logits(self, nsamples, nclasses):
     """Generate well distributed and well calibrated probabilities.
 
@@ -180,46 +166,6 @@ class CalibrationTest(parameterized.TestCase, tf.test.TestCase):
 
     return logits_other, labels
 
-  @parameterized.parameters(
-      (10, 2, 50000), (10, 5, 50000), (10, 50, 50000),
-  )
-  def test_expected_calibration_error_wellcalibrated(self, num_bins, nclasses,
-                                                     nsamples):
-    logits, labels = self._generate_perfect_calibration_logits(
-        nsamples, nclasses)
-    ece = um.expected_calibration_error(
-        num_bins, logits=logits, labels_true=labels)
-    ece = float(ece)
-
-    logging.info("ECE (well-calibrated), num_bins=%d  nclasses=%d  "
-                 "nsamples=%d  ECE %.4f", num_bins, nclasses, nsamples, ece)
-
-    ece_tolerance = 0.01
-    self.assertLess(ece, ece_tolerance,
-                    msg="Expected calibration error (ECE) computed at %.4f "
-                    "for well-calibrated predictions exceeds "
-                    "tolerance of %.4f." % (ece, ece_tolerance))
-
-  @parameterized.parameters(
-      (10, 2, 50000), (10, 5, 50000), (10, 50, 50000),
-  )
-  def test_expected_calibration_error_uncalibrated(self, num_bins, nclasses,
-                                                   nsamples):
-    logits, labels = self._generate_random_calibration_logits(
-        nsamples, nclasses)
-    ece = um.expected_calibration_error(
-        num_bins, logits=logits, labels_true=labels)
-    ece = float(ece)
-
-    logging.info("ECE (uncalibrated), num_bins=%d  nclasses=%d  "
-                 "nsamples=%d  ECE %.4f", num_bins, nclasses, nsamples, ece)
-
-    ece_lower = 0.2
-    self.assertGreater(ece, ece_lower,
-                       msg="Expected calibration error (ECE) computed at %.4f "
-                       "for well-calibrated predictions is smaller than "
-                       "minimum ECE of %.4f." % (ece, ece_lower))
-
   def _bayesian_ece_q(self, num_bins, logits, labels, num_ece_samples=200):
     bece_samples = um.bayesian_expected_calibration_error(
         num_bins, logits=logits, labels_true=labels,
@@ -231,62 +177,6 @@ class CalibrationTest(parameterized.TestCase, tf.test.TestCase):
     bece_q99 = bece_q[2]
 
     return bece_q1, bece_q50, bece_q99
-
-  @parameterized.parameters(
-      (10, 2, 5), (10, 5, 50), (10, 50, 500),
-  )
-  def test_bayesian_ece(self, num_bins, nclasses, nsamples):
-    logits, labels = self._generate_perfect_calibration_logits(
-        nsamples, nclasses)
-    ece = um.expected_calibration_error(
-        num_bins, logits=logits, labels_true=labels)
-
-    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
-
-    logging.info("Bayesian ECE (ECE check), num_bins=%d  nclasses=%d  "
-                 "nsamples=%d  ECE %.4f  BECE-50 %.4f", num_bins, nclasses,
-                 nsamples, ece, bq50)
-
-    self.assertGreater(ece, bq1, msg="ECE %.4f outside Bayesian 1-99 hpd "
-                       "region [%.4f,%.4f]." % (ece, bq1, bq99))
-    self.assertLess(ece, bq99, msg="ECE %.4f outside Bayesian 1-99 hpd "
-                    "region [%.4f,%.4f]." % (ece, bq1, bq99))
-
-  @parameterized.parameters(
-      (10, 2, 5000), (10, 50, 50000),
-  )
-  def test_bayesian_ece_wellcalibrated(self, num_bins, nclasses, nsamples):
-    logits, labels = self._generate_perfect_calibration_logits(
-        nsamples, nclasses)
-    ece = um.expected_calibration_error(
-        num_bins, logits=logits, labels_true=labels)
-
-    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
-
-    logging.info("Bayesian ECE (well-calibrated), num_bins=%d  nclasses=%d  "
-                 "nsamples=%d  ECE %.4f  BECE-1/50/99 %.4f/%.4f/%.4f",
-                 num_bins, nclasses, nsamples, ece, bq1, bq50, bq99)
-
-    self.assertLess(bq99, 0.05, msg="BECE-99 %.4f too high for "
-                    "well-calibrated case, nsamples=%d" % (bq99, nsamples))
-
-  @parameterized.parameters(
-      (10, 2, 5000), (10, 50, 50000),
-  )
-  def test_bayesian_ece_uncalibrated(self, num_bins, nclasses, nsamples):
-    logits, labels = self._generate_random_calibration_logits(
-        nsamples, nclasses)
-    ece = um.expected_calibration_error(
-        num_bins, logits=logits, labels_true=labels)
-
-    bq1, bq50, bq99 = self._bayesian_ece_q(num_bins, logits, labels)
-
-    logging.info("Bayesian ECE (uncalibrated), num_bins=%d  nclasses=%d  "
-                 "nsamples=%d  ECE %.4f  BECE-1/50/99 %.4f/%.4f/%.4f",
-                 num_bins, nclasses, nsamples, ece, bq1, bq50, bq99)
-
-    self.assertGreater(bq1, 0.1, msg="BECE-1 %.4f too low for "
-                       "uncalibrated case, nsamples=%d" % (bq1, nsamples))
 
 if __name__ == "__main__":
   tf.enable_v2_behavior()

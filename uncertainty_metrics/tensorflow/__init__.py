@@ -28,7 +28,6 @@ else:
   from uncertainty_metrics.tensorflow.auc import AUC
   from uncertainty_metrics.tensorflow import calibration
   from uncertainty_metrics.tensorflow.calibration import brier_decomposition
-  from uncertainty_metrics.tensorflow.calibration import expected_calibration_error
   from uncertainty_metrics.tensorflow.calibration import brier_score
   from uncertainty_metrics.tensorflow.calibration import bayesian_expected_calibration_error
   from uncertainty_metrics.tensorflow import mutual_information
@@ -47,7 +46,6 @@ else:
       "AUC",
       "calibration",
       "brier_decomposition",
-      "expected_calibration_error",
       "brier_score",
       "bayesian_expected_calibration_error",
       "mutual_information",
