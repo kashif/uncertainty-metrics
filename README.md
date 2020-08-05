@@ -1,14 +1,30 @@
 # Uncertainty Metrics
-
-Uncertainty Metrics provides an easy-to-use interface for measuring uncertainty
-across Google and the open-source community.
+The goal of this library is to provide an easy-to-use interface for measuring uncertainty across Google and the open-source community.
 
 Machine learning models often produce incorrect (over or under confident) probabilities. In real-world decision making systems, classification models must not only be accurate, but also should indicate when they are likely to be incorrect. For example, one important property is calibration: the idea that a model's predicted probabilities of outcomes reflect true probabilities of those outcomes. Intuitively, for class predictions, calibration means that if a model assigns a class with 90% probability, that class should appear 90% of the time.
 
-## Usage
-We access Uncertainty Metrics via `import uncertainty_metrics as um`.
+## Installation
+```sh
+pip install uncertainty_metrics
+```
 
-## Support
+To install the latest development version, run
+
+```sh
+pip install "git+https://github.com/google/uncertainty_metrics.git#egg=uncertainty_metrics"
+```
+
+
+## Getting Started
+
+We provide a suite of metrics to evaluate and diagnose uncertainty in models.
+
+This includes:
+- Calibration error and sharpness
+- Proper scoring rules
+- AUC/Rejection
+- Visualization tools
+
 We support the following calibration metrics:
 
 - Expected Calibration Error [3]
@@ -28,12 +44,18 @@ We also support:
 - Importance Sampling Cross Validation
 - Continuous Ranked Probability Score
 
+
+
 ## To add a new metric:
 1. Add the paper reference to the `References` section below.
-2. Add the metric definition to the numpy/ dir for a numpy based metric or to the tensorflow/ dir for a tensorflow based metric.
-. Every file should have a subclass of `datasets.base.BaseDataset`, which at a minimum requires implementing a constructor, `_read_examples`, and `_create_process_example_fn`.
+2. Add the metric definition to the numpy/ dir for a numpy based metric or to the tensorflow/ dir for a tensorflow based metric.s
 3. Add the metric class or function to the corresponding __init__.py file.
 4. Add a test that at a minimum implements the metric using 'import uncertainty_metrics as um' and um.*your metric* and checks that the value is in the appropriate range.
+## Stability
+There is not yet a stable version (nor an official release of this library).
+All APIs are subject to change.
+
+# Examples
 
 ## Expected Calibration Error Example
 ```python
@@ -51,6 +73,13 @@ import uncertainty_metrics as um
 probabilities = ...
 labels = ...
 diagram = um.reliability_diagram(labels, probabilities)
+```
+
+## Brier Score Example
+```python
+tf_probabilities = ...
+labels = ...
+bs = um.brier_score(labels=labels, probabilities=tf_probabilities)
 ```
 
 ## An example of how to diagnose miscalibration.
@@ -130,10 +159,6 @@ Now we can plot the reliability diagram which demonstrates more details of calib
 
 <img src="https://drive.google.com/uc?export=view&id=1M-raNJyzsNBHhGuPoVfSmUtrSKOLPx3U" width="750"/>
 
-
-## Stability
-There is not yet a stable version (nor an official release of this library).
-All APIs are subject to change.
 
 ## References
 
