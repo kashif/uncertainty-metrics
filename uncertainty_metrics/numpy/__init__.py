@@ -31,6 +31,7 @@ else:
   from uncertainty_metrics.numpy.general_calibration_error import *
   from uncertainty_metrics.numpy.general_calibration_error import ace
   from uncertainty_metrics.numpy.general_calibration_error import adaptive_calibration_error
+  from uncertainty_metrics.numpy.general_calibration_error import compute_all_metrics
   from uncertainty_metrics.numpy.general_calibration_error import ece
   from uncertainty_metrics.numpy.general_calibration_error import gce
   from uncertainty_metrics.numpy.general_calibration_error import general_calibration_error
@@ -54,6 +55,7 @@ else:
       "visualization",
       "GeneralCalibrationError",
       "general_calibration_error",
+      "compute_all_metrics",
       "ece",
       "root_mean_squared_calibration_error",
       "rmsce",

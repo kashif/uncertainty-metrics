@@ -17,6 +17,7 @@
 """General metric defining the parameterized space of calibration metrics.
 """
 
+import itertools
 import numpy as np
 
 
@@ -434,3 +435,24 @@ def tace(labels, probs, num_bins=30, threshold=0.01):
              threshold=threshold)
 
 thresholded_adaptive_calibration_error = tace
+
+
+def compute_all_metrics(labels, probs):
+  """Computes all GCE metrics."""
+  parameters = [['even', 'adaptive'], [True, False], [True, False],
+                [0.0, 0.01], ['l1', 'l2']]
+  params = list(itertools.product(*parameters))
+  measures = []
+  for p in params:
+    def metric(labels, probs, num_bins=30, p=p):
+      """Implements Expected Calibration Error."""
+      return gce(labels,
+                 probs,
+                 binning_scheme=p[0],
+                 max_prob=p[1],
+                 class_conditional=p[2],
+                 threshold=p[3],
+                 norm=p[4],
+                 num_bins=num_bins)
+    measures.append(metric(labels, probs))
+  return np.array(measures)

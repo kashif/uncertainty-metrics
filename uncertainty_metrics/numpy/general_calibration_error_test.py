@@ -99,6 +99,13 @@ class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
         class_conditional=False, max_prob=True, norm='l1')
     self.assertAlmostEqual(calibration_error, 0.18124999999999997)
 
+  def test_compute_all(self):
+    probs = np.array(
+        [.91, .32, .66, .67, .57, .98, .41, .19]).reshape(8, 1)
+    labels = np.array([1, 0, 1, 1, 0, 1, 0, 0])
+    cap = um.compute_all_metrics(labels, probs)
+    self.assertNotEmpty(cap)
+
   def test_correctness(self):
     num_bins = 10
     pred_probs = [
