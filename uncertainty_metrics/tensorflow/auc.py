@@ -18,7 +18,7 @@
 Find source at https://www.tensorflow.org/api_docs/python/tf/keras/metrics/AUC.
 """
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class AUC(tf.keras.metrics.AUC):

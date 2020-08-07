@@ -15,13 +15,9 @@
 
 """Tests for predictive_metrics.regression."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import math
 from absl import logging
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 from uncertainty_metrics import regression
 
@@ -93,5 +89,4 @@ class RegressionTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.enable_v2_behavior()
   tf.test.main()

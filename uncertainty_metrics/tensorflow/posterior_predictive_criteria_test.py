@@ -15,10 +15,6 @@
 
 """Tests for predictive_metrics.posterior_predictive_criteria."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl import logging
 from absl.testing import parameterized
 

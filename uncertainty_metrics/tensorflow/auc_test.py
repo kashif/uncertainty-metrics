@@ -15,7 +15,7 @@
 
 """Tests for AUC."""
 
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import uncertainty_metrics as um
 
 
@@ -31,5 +31,4 @@ class AucTest(tf.test.TestCase):
     self.assertAlmostEqual(m.result().numpy(), 0.75)
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()

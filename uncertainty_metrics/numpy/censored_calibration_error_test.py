@@ -17,7 +17,7 @@
 """Tests for Censored Calibration Error."""
 
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import uncertainty_metrics as um
 
 

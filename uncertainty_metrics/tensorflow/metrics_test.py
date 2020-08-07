@@ -16,7 +16,7 @@
 # Lint as: python3
 """Tests for calibration metrics."""
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import uncertainty_metrics as um
 
 
@@ -168,5 +168,4 @@ class ExpectedCalibrationErrorTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
-  tf.enable_v2_behavior()
   tf.test.main()
