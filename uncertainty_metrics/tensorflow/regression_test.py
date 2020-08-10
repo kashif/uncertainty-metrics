@@ -18,8 +18,7 @@
 import math
 from absl import logging
 import tensorflow as tf
-
-from uncertainty_metrics import regression
+import uncertainty_metrics as um
 
 
 class RegressionTest(tf.test.TestCase):
@@ -34,14 +33,14 @@ class RegressionTest(tf.test.TestCase):
 
     labels = tf.random.normal((nsamples,))
     predictive_samples = tf.random.normal((nsamples, npredictive_samples))
-    crps_sample = regression.crps_score(
+    crps_sample = um.crps_score(
         labels=labels, predictive_samples=predictive_samples)
 
     means = tf.zeros_like(labels)
     stddevs = tf.ones_like(labels)
-    crps_analytic = regression.crps_normal_score(labels=labels,
-                                                 means=means,
-                                                 stddevs=stddevs)
+    crps_analytic = um.crps_normal_score(labels=labels,
+                                         means=means,
+                                         stddevs=stddevs)
 
     max_diff = tf.reduce_max(tf.abs(crps_sample - crps_analytic))
     max_diff = float(max_diff)
@@ -71,7 +70,7 @@ class RegressionTest(tf.test.TestCase):
     crps_samples = []
     for _ in range(ntrue_samples):
       labels = tf.random.normal((nspacing,))
-      crps_sample = regression.crps_score(
+      crps_sample = um.crps_score(
           labels=labels, predictive_samples=predictive_samples)
       crps_samples.append(crps_sample)
 

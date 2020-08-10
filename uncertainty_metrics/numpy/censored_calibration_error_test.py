@@ -18,7 +18,7 @@
 
 import numpy as np
 import tensorflow as tf
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 
 
 class CensoredCalibrationErrorTest(tf.test.TestCase):

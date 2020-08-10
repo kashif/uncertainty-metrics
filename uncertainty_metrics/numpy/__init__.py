@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Uncertainty Metrics Numpy init file."""
+"""Uncertainty Metrics with NumPy backend."""
 
+# Make the NumPy backend be optional. The namespace is empty if NumPy
+# is not available.
 # pylint: disable=g-import-not-at-top
 try:
   import numpy as np  # pylint: disable=unused-import
@@ -28,7 +30,6 @@ else:
   from uncertainty_metrics.numpy.censored_calibration_error import CCE
   from uncertainty_metrics.numpy.censored_calibration_error import cce
   from uncertainty_metrics.numpy.censored_calibration_error import cce_conf_int
-  from uncertainty_metrics.numpy.general_calibration_error import *
   from uncertainty_metrics.numpy.general_calibration_error import ace
   from uncertainty_metrics.numpy.general_calibration_error import adaptive_calibration_error
   from uncertainty_metrics.numpy.general_calibration_error import compute_all_metrics
@@ -49,32 +50,36 @@ else:
   from uncertainty_metrics.numpy.semiparametric_calibration_error import SPCE
   from uncertainty_metrics.numpy.semiparametric_calibration_error import spce
   from uncertainty_metrics.numpy.semiparametric_calibration_error import spce_conf_int
+  from uncertainty_metrics.version import __version__
+  from uncertainty_metrics.version import VERSION
 
   _allowed_symbols = [
-      "reliability_diagram",
-      "visualization",
-      "GeneralCalibrationError",
-      "general_calibration_error",
+      "ace",
+      "adaptive_calibration_error",
+      "CCE",
+      "cce",
+      "cce_conf_int",
       "compute_all_metrics",
       "ece",
-      "root_mean_squared_calibration_error",
-      "rmsce",
-      "static_calibration_error",
-      "sce",
-      "adaptive_calibration_error",
-      "ace",
       "gce",
-      "thresholded_adaptive_calibration_error",
-      "tace",
+      "general_calibration_error",
+      "GeneralCalibrationError",
+      "reliability_diagram",
+      "rmsce",
+      "root_mean_squared_calibration_error",
+      "sce",
       "semiparametric_calibration_error",
       "semiparametric_calibration_error_conf_int",
       "SemiparametricCalibrationError",
       "SPCE",
       "spce",
       "spce_conf_int",
-      "CCE",
-      "cce",
-      "cce_conf_int",
+      "static_calibration_error",
+      "tace",
+      "thresholded_adaptive_calibration_error",
+      "visualization",
+      "__version__",
+      "VERSION",
   ]
 
   try:
@@ -83,3 +88,4 @@ else:
     __all__ = _allowed_symbols
   else:
     remove_undocumented(__name__, _allowed_symbols)
+# pylint: enable=g-import-not-at-top

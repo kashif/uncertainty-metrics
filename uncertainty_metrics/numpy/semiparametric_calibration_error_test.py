@@ -20,7 +20,7 @@
 
 from absl.testing import absltest
 import numpy as np
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 
 
 class SemiparametricCalibrationErrorTest(absltest.TestCase):

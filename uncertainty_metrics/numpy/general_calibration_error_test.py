@@ -21,7 +21,7 @@ import itertools
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 from uncertainty_metrics.numpy.general_calibration_error import get_adaptive_bins
 
 

@@ -14,7 +14,6 @@ To install the latest development version, run
 pip install "git+https://github.com/google/uncertainty_metrics.git#egg=uncertainty_metrics"
 ```
 
-
 ## Getting Started
 
 We provide a suite of metrics to evaluate and diagnose uncertainty in models.
@@ -59,7 +58,7 @@ All APIs are subject to change.
 
 ## Expected Calibration Error Example
 ```python
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 
 probabilities = ...
 labels = ...
@@ -68,7 +67,7 @@ ece = um.ece(labels, probabilities, num_bins=30)
 
 ## Reliability Diagram Example
 ```python
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 
 probabilities = ...
 labels = ...
@@ -77,6 +76,8 @@ diagram = um.reliability_diagram(labels, probabilities)
 
 ## Brier Score Example
 ```python
+import uncertainty_metrics.numpy as um
+
 tf_probabilities = ...
 labels = ...
 bs = um.brier_score(labels=labels, probabilities=tf_probabilities)
@@ -100,7 +101,7 @@ We focus on the calibration (measured by ECE) of Mixup + BatchEnsemble ([Wen et 
 
 ```python
 import tensorflow as tf
-import uncertainty_metrics as um
+import uncertainty_metrics.numpy as um
 
 # Load and preprocess a dataset. Also load the model.
 test_images, test_labels = ...

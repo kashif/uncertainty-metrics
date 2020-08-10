@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Namespace management for Tensorflow dependent code.
-"""
+"""Uncertainty Metrics with Tensorflow backend."""
 
 # Make the TensorFlow backend be optional. The namespace is empty if
 # TensorFlow is not available.
@@ -26,25 +25,23 @@ except ImportError:
   pass
 else:
   from uncertainty_metrics.tensorflow.auc import AUC
-  from uncertainty_metrics.tensorflow import calibration
   from uncertainty_metrics.tensorflow.calibration import brier_decomposition
   from uncertainty_metrics.tensorflow.calibration import brier_score
   from uncertainty_metrics.tensorflow.calibration import bayesian_expected_calibration_error
-  from uncertainty_metrics.tensorflow import mutual_information
   from uncertainty_metrics.tensorflow.mutual_information import model_uncertainty
   from uncertainty_metrics.tensorflow import posterior_predictive_criteria
   from uncertainty_metrics.tensorflow.posterior_predictive_criteria import negative_waic
   from uncertainty_metrics.tensorflow.posterior_predictive_criteria import importance_sampling_cross_validation
-  from uncertainty_metrics.tensorflow import regression
+  from uncertainty_metrics.tensorflow.regression import crps_normal_score
   from uncertainty_metrics.tensorflow.regression import crps_score
-  from uncertainty_metrics.tensorflow import metrics
   from uncertainty_metrics.tensorflow.metrics import ExpectedCalibrationError
+  from uncertainty_metrics.version import __version__
+  from uncertainty_metrics.version import VERSION
 
   from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
   _allowed_symbols = [
       "AUC",
-      "calibration",
       "brier_decomposition",
       "brier_score",
       "bayesian_expected_calibration_error",
@@ -53,12 +50,12 @@ else:
       "posterior_predictive_criteria",
       "negative_waic",
       "importance_sampling_cross_validation",
-      "regression",
+      "crps_normal_score",
       "crps_score",
-      "metrics",
       "ExpectedCalibrationError",
       "__version__",
       "VERSION",
   ]
 
   remove_undocumented(__name__, _allowed_symbols)
+# pylint: enable=g-import-not-at-top
