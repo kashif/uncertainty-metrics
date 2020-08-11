@@ -25,16 +25,18 @@ except ImportError:
   pass
 else:
   from uncertainty_metrics.tensorflow.auc import AUC
-  from uncertainty_metrics.tensorflow.calibration import brier_decomposition
-  from uncertainty_metrics.tensorflow.calibration import brier_score
+  from uncertainty_metrics.tensorflow import calibration
   from uncertainty_metrics.tensorflow.calibration import bayesian_expected_calibration_error
-  from uncertainty_metrics.tensorflow.mutual_information import model_uncertainty
-  from uncertainty_metrics.tensorflow import posterior_predictive_criteria
-  from uncertainty_metrics.tensorflow.posterior_predictive_criteria import negative_waic
-  from uncertainty_metrics.tensorflow.posterior_predictive_criteria import importance_sampling_cross_validation
-  from uncertainty_metrics.tensorflow.regression import crps_normal_score
-  from uncertainty_metrics.tensorflow.regression import crps_score
-  from uncertainty_metrics.tensorflow.metrics import ExpectedCalibrationError
+  from uncertainty_metrics.tensorflow.calibration import ExpectedCalibrationError
+  from uncertainty_metrics.tensorflow import information_criteria
+  from uncertainty_metrics.tensorflow.information_criteria import model_uncertainty
+  from uncertainty_metrics.tensorflow.information_criteria import negative_waic
+  from uncertainty_metrics.tensorflow.information_criteria import importance_sampling_cross_validation
+  from uncertainty_metrics.tensorflow import scoring_rules
+  from uncertainty_metrics.tensorflow.scoring_rules import brier_decomposition
+  from uncertainty_metrics.tensorflow.scoring_rules import brier_score
+  from uncertainty_metrics.tensorflow.scoring_rules import crps_normal_score
+  from uncertainty_metrics.tensorflow.scoring_rules import crps_score
   from uncertainty_metrics.version import __version__
   from uncertainty_metrics.version import VERSION
 
@@ -42,14 +44,15 @@ else:
 
   _allowed_symbols = [
       "AUC",
+      "calibration",
       "brier_decomposition",
       "brier_score",
       "bayesian_expected_calibration_error",
-      "mutual_information",
       "model_uncertainty",
-      "posterior_predictive_criteria",
+      "information_criteria",
       "negative_waic",
       "importance_sampling_cross_validation",
+      "scoring_rules",
       "crps_normal_score",
       "crps_score",
       "ExpectedCalibrationError",

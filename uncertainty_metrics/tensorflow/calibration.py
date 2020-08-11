@@ -27,166 +27,140 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 
-def brier_decomposition(labels=None, logits=None, probabilities=None):
-  r"""Decompose the Brier score into uncertainty, resolution, and reliability.
+class ExpectedCalibrationError(tf.keras.metrics.Metric):
+  """Expected Calibration Error.
 
-  [Proper scoring rules][1] measure the quality of probabilistic predictions;
-  any proper scoring rule admits a [unique decomposition][2] as
-  `Score = Uncertainty - Resolution + Reliability`, where:
+  Expected calibration error (Guo et al., 2017, Naeini et al., 2015) is a scalar
+  measure of calibration for probabilistic models. Calibration is defined as the
+  level to which the accuracy over a set of predicted decisions and true
+  outcomes associated with a given predicted probability level matches the
+  predicted probability. A perfectly calibrated model would be correct `p`% of
+  the time for all examples for which the predicted probability was `p`%, over
+  all values of `p`.
 
-  * `Uncertainty`, is a generalized entropy of the average predictive
-    distribution; it can both be positive or negative.
-  * `Resolution`, is a generalized variance of individual predictive
-    distributions; it is always non-negative.  Difference in predictions reveal
-    information, that is why a larger resolution improves the predictive score.
-  * `Reliability`, a measure of calibration of predictions against the true
-    frequency of events.  It is always non-negative and a lower value here
-    indicates better calibration.
+  This metric can be computed as follows. First, cut up the probability space
+  interval [0, 1] into some number of bins. Then, for each example, store the
+  predicted class (based on a threshold of 0.5 in the binary case and the max
+  probability in the multiclass case), the predicted probability corresponding
+  to the predicted class, and the true label into the corresponding bin based on
+  the predicted probability. Then, for each bin, compute the average predicted
+  probability ("confidence"), the accuracy of the predicted classes, and the
+  absolute difference between the confidence and the accuracy ("calibration
+  error"). Expected calibration error can then be computed as a weighted average
+  calibration error over all bins, weighted based on the number of examples per
+  bin.
 
-  This method estimates the above decomposition for the case of the Brier
-  scoring rule for discrete outcomes.  For this, we need to discretize the space
-  of probability distributions; we choose a simple partition of the space into
-  `nlabels` events: given a distribution `p` over `nlabels` outcomes, the index
-  `k` for which `p_k > p_i` for all `i != k` determines the discretization
-  outcome; that is, `p in M_k`, where `M_k` is the set of all distributions for
-  which `p_k` is the largest value among all probabilities.
+  Perfect calibration under this setup is when, for all bins, the average
+  predicted probability matches the accuracy, and thus the expected calibration
+  error equals zero. In the limit as the number of bins goes to infinity, the
+  predicted probability would be equal to the accuracy for all possible
+  probabilities.
 
-  The estimation error of each component is O(k/n), where n is the number
-  of instances and k is the number of labels.  There may be an error of this
-  order when compared to `brier_score`.
-
-  #### References
-  [1]: Tilmann Gneiting, Adrian E. Raftery.
-       Strictly Proper Scoring Rules, Prediction, and Estimation.
-       Journal of the American Statistical Association, Vol. 102, 2007.
-       https://www.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf
-  [2]: Jochen Broecker.  Reliability, sufficiency, and the decomposition of
-       proper scores.
-       Quarterly Journal of the Royal Meteorological Society, Vol. 135, 2009.
-       https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1002/qj.456
-
-  Args:
-    labels: Tensor, (n,), with tf.int32 or tf.int64 elements containing ground
-      truth class labels in the range [0,nlabels].
-    logits: Tensor, (n, nlabels), with logits for n instances and nlabels.
-    probabilities: Tensor, (n, nlabels), with predictive probability
-      distribution (alternative to logits argument).
-
-  Returns:
-    uncertainty: Tensor, scalar, the uncertainty component of the
-      decomposition.
-    resolution: Tensor, scalar, the resolution component of the decomposition.
-    reliability: Tensor, scalar, the reliability component of the
-      decomposition.
+  References:
+    1. Guo, C., Pleiss, G., Sun, Y. & Weinberger, K. Q. On Calibration of Modern
+       Neural Networks. in International Conference on Machine Learning (ICML)
+       cs.LG, (Cornell University Library, 2017).
+    2. Naeini, M. P., Cooper, G. F. & Hauskrecht, M. Obtaining Well Calibrated
+       Probabilities Using Bayesian Binning. Proc Conf AAAI Artif Intell 2015,
+       2901-2907 (2015).
   """
-  # if labels:
-  #   labels = tf.convert_to_tensor(labels)
-  # if logits:
-  #   logits = tf.cast(logits, None)
-  # if probabilities:
-  #   probabilities = tf.cast(probabilities, None)
-  if (logits is None) == (probabilities is None):
-    raise ValueError(
-        "brier_decomposition expects exactly one of logits or probabilities.")
-  if probabilities is None:
-    if logits.get_shape().as_list()[-1] == 1:
-      raise ValueError(
-          "brier_decomposition expects logits for binary classification of "
-          "shape (n, 2) for nlabels=2 but got ", logits.get_shape())
-    probabilities = tf.math.softmax(logits, axis=1)
-  if (probabilities.get_shape().as_list()[-1] == 1 or
-      len(probabilities.get_shape().as_list()) == 1):
-    raise ValueError(
-        "brier_decomposition expects probabilities for binary classification of"
-        " shape (n, 2) for nlabels=2 but got ", probabilities.get_shape())
-  _, nlabels = probabilities.shape  # Implicit rank check.
 
-  # Compute pbar, the average distribution
-  pred_class = tf.argmax(probabilities, axis=1, output_type=tf.int32)
-  confusion_matrix = tf.math.confusion_matrix(pred_class, labels, nlabels,
-                                              dtype=tf.float32)
-  dist_weights = tf.reduce_sum(confusion_matrix, axis=1)
-  dist_weights /= tf.reduce_sum(dist_weights)
-  pbar = tf.reduce_sum(confusion_matrix, axis=0)
-  pbar /= tf.reduce_sum(pbar)
+  _setattr_tracking = False  # Automatic tracking breaks some unit tests
 
-  # dist_mean[k,:] contains the empirical distribution for the set M_k
-  # Some outcomes may not realize, corresponding to dist_weights[k] = 0
-  dist_mean = confusion_matrix / tf.expand_dims(
-      tf.reduce_sum(confusion_matrix, axis=1) + 1.0e-7, 1)
+  def __init__(self, num_bins=15, name=None, dtype=None):
+    """Constructs an expected calibration error metric.
 
-  # Uncertainty: quadratic entropy of the average label distribution
-  uncertainty = -tf.reduce_sum(tf.square(pbar))
+    Args:
+      num_bins: Number of bins to maintain over the interval [0, 1].
+      name: Name of this metric.
+      dtype: Data type.
+    """
+    super(ExpectedCalibrationError, self).__init__(name, dtype)
+    self.num_bins = num_bins
 
-  # Resolution: expected quadratic divergence of predictive to mean
-  resolution = tf.square(tf.expand_dims(pbar, 1) - dist_mean)
-  resolution = tf.reduce_sum(dist_weights * tf.reduce_sum(resolution, axis=1))
+    self.correct_sums = self.add_weight(
+        "correct_sums", shape=(num_bins,), initializer=tf.zeros_initializer)
+    self.prob_sums = self.add_weight(
+        "prob_sums", shape=(num_bins,), initializer=tf.zeros_initializer)
+    self.counts = self.add_weight(
+        "counts", shape=(num_bins,), initializer=tf.zeros_initializer)
 
-  # Reliability: expected quadratic divergence of predictive to true
-  prob_true = tf.gather(dist_mean, pred_class, axis=0)
-  reliability = tf.reduce_sum(tf.square(prob_true - probabilities), axis=1)
-  reliability = tf.reduce_mean(reliability)
+  @tf.function
+  def update_state(self, labels, probabilities, **kwargs):
+    """Updates this metric.
 
-  return uncertainty, resolution, reliability
+    This will flatten the labels and probabilities, and then compute the ECE
+    over all predictions.
 
+    Args:
+      labels: Tensor of shape [..., ] of class labels in [0, k-1].
+      probabilities: Tensor of shape [..., ], [..., 1] or [..., k] of normalized
+        probabilities associated with the True class in the binary case, or with
+        each of k classes in the multiclass case.
+      **kwargs: Other potential keywords, which will be ignored by this method.
+    """
+    del kwargs  # unused
+    labels = tf.convert_to_tensor(labels)
+    probabilities = tf.cast(probabilities, self.dtype)
 
-def brier_score(labels=None, logits=None, probabilities=None, aggregate=True):
-  r"""Compute the Brier score for a probabilistic prediction.
+    # Flatten labels to [N, ] and probabilities to [N, 1] or [N, k].
+    if tf.rank(labels) != 1:
+      labels = tf.reshape(labels, [-1])
+    if tf.rank(probabilities) != 2 or (tf.shape(probabilities)[0] !=
+                                       tf.shape(labels)[0]):
+      probabilities = tf.reshape(probabilities, [tf.shape(labels)[0], -1])
+    # Extend any probabilities of shape [N, 1] to shape [N, 2].
+    # NOTE: XLA does not allow for different shapes in the branches of a
+    # conditional statement. Therefore, explicit indexing is used.
+    given_k = tf.shape(probabilities)[-1]
+    k = tf.math.maximum(2, given_k)
+    probabilities = tf.cond(
+        given_k < 2,
+        lambda: tf.concat([1. - probabilities, probabilities], axis=-1)[:, -k:],
+        lambda: probabilities)
 
-  The [Brier score][1] is a loss function for probabilistic predictions over a
-  number of discrete outcomes.  For a probability vector `p` and a realized
-  outcome `k` the Brier score is `sum_i p[i]*p[i] - 2*p[k]`.  Smaller values are
-  better in terms of prediction quality.  The Brier score can be negative.
+    pred_labels = tf.math.argmax(probabilities, axis=-1)
+    pred_probs = tf.math.reduce_max(probabilities, axis=-1)
+    correct_preds = tf.math.equal(pred_labels,
+                                  tf.cast(labels, pred_labels.dtype))
+    correct_preds = tf.cast(correct_preds, self.dtype)
 
-  Compared to the cross entropy (aka logarithmic scoring rule) the Brier score
-  does not strongly penalize events which are deemed unlikely but do occur,
-  see [2].  The Brier score is a strictly proper scoring rule and therefore
-  yields consistent probabilistic predictions.
+    bin_indices = tf.histogram_fixed_width_bins(
+        pred_probs, tf.constant([0., 1.], self.dtype), nbins=self.num_bins)
+    batch_correct_sums = tf.math.unsorted_segment_sum(
+        data=tf.cast(correct_preds, self.dtype),
+        segment_ids=bin_indices,
+        num_segments=self.num_bins)
+    batch_prob_sums = tf.math.unsorted_segment_sum(data=pred_probs,
+                                                   segment_ids=bin_indices,
+                                                   num_segments=self.num_bins)
+    batch_counts = tf.math.unsorted_segment_sum(data=tf.ones_like(bin_indices),
+                                                segment_ids=bin_indices,
+                                                num_segments=self.num_bins)
+    batch_counts = tf.cast(batch_counts, self.dtype)
+    self.correct_sums.assign_add(batch_correct_sums)
+    self.prob_sums.assign_add(batch_prob_sums)
+    self.counts.assign_add(batch_counts)
 
-  #### References
-  [1]: G.W. Brier.
-       Verification of forecasts expressed in terms of probability.
-       Monthley Weather Review, 1950.
-  [2]: Tilmann Gneiting, Adrian E. Raftery.
-       Strictly Proper Scoring Rules, Prediction, and Estimation.
-       Journal of the American Statistical Association, Vol. 102, 2007.
-       https://www.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf
+  def result(self):
+    """Computes the expected calibration error."""
+    non_empty = tf.math.not_equal(self.counts, 0)
+    correct_sums = tf.boolean_mask(self.correct_sums, non_empty)
+    prob_sums = tf.boolean_mask(self.prob_sums, non_empty)
+    counts = tf.boolean_mask(self.counts, non_empty)
+    accs = correct_sums / counts
+    confs = prob_sums / counts
+    total_count = tf.reduce_sum(counts)
+    return tf.reduce_sum(counts / total_count * tf.abs(accs - confs))
 
-  Args:
-    labels: Tensor, (n,), with tf.int32 or tf.int64 elements containing ground
-      truth class labels in the range [0,nlabels].
-    logits: Tensor, (n,nlabels), with logits for n instances and nlabels.
-    probabilities: Tensor, (n, nlabels), with predictive probability
-      distribution (alternative to logits argument).
-    aggregate: bool, whether or not to average over the batch.
+  def reset_states(self):
+    """Resets all of the metric state variables.
 
-  Returns:
-    brier_score: Tensor, if `aggregate` is true then it is a scalar, the average
-      Brier score over all instances, else it is a vector of the Brier score for
-      each individual element of the batc.
-  """
-  if (logits is None) == (probabilities is None):
-    raise ValueError(
-        "brier_score expects exactly one of logits or probabilities.")
-  if probabilities is None:
-    if logits.get_shape().as_list()[-1] == 1:
-      raise ValueError(
-          "brier_score expects logits for binary classification of "
-          "shape (n, 2) for nlabels=2 but got ", logits.get_shape())
-    probabilities = tf.math.softmax(logits, axis=1)
-  if (probabilities.get_shape().as_list()[-1] == 1 or
-      len(probabilities.get_shape().as_list()) == 1):
-    raise ValueError(
-        "brier_score expects probabilities for binary classification of"
-        " shape (n, 2) for nlabels=2 but got ", probabilities.get_shape())
-  _, nlabels = probabilities.shape  # Implicit rank check.
-  plabel = tf.reduce_sum(tf.one_hot(labels, nlabels) * probabilities, axis=1)
-
-  brier = tf.reduce_sum(tf.square(probabilities), axis=1) - 2.0 * plabel
-  if aggregate:
-    brier = tf.reduce_mean(brier)
-
-  return brier
+    This function is called between epochs/steps,
+    when a metric is evaluated during training.
+    """
+    tf.keras.backend.batch_set_value([(v, [0.,]*self.num_bins) for v in
+                                      self.variables])
 
 
 def _bin_centers(num_bins):

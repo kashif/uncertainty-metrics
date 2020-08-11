@@ -474,8 +474,7 @@ uncertainty. An example code is given below:
 
 ```python
 logits = model(validation_data)
-model_uncert, total_uncert, avg_data_uncert = mutual_information.model_uncertainty(
-    logits)
+model_uncert, total_uncert, avg_data_uncert = um.model_uncertainty(logits)
 ```
 
 __Example: Widely/Watanabe Applicable Information Criterion (WAIC).__
@@ -503,10 +502,8 @@ Both nWAIC criteria have comparable properties, but Watanabe recommends $$\textr
 To estimate the negative WAIC, we use the following code.
 
 ```python
-import um.posterior_predictive_criteria as ppc
-
 # logp has shape (n,m), n instances, m ensemble members
-neg_waic, neg_waic_sem = ppc.negative_waic(logp, waic_type="waic1")
+neg_waic, neg_waic_sem = um.negative_waic(logp, waic_type="waic1")
 ```
 
 You can select the type of nWAIC to estimate using `waic_type="waic1"` or
@@ -523,10 +520,8 @@ $$\textrm{ISCV} := -\frac{1}{n} \sum_{i=1}^n
 We can estimate the ISCV using the following code:
 
 ```python
-import um.posterior_predictive_criteria as ppc
-
 # logp has shape (n,m), n instances, m ensemble members
-iscv, iscv_sem = ppc.importance_sampling_cross_validation(logp)
+iscv, iscv_sem = um.importance_sampling_cross_validation(logp)
 ```
 
 ## To add a new metric
