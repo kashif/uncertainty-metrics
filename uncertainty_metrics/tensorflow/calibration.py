@@ -240,15 +240,15 @@ def _compute_calibration_bin_statistics(
     raise ValueError(
         "_compute_calibration_bin_statistics expects exactly one of logits or "
         "probabilities.")
-  if probabilities is None:
-    if logits.get_shape().as_list()[-1] == 1:
+  elif probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:  # pytype: disable=attribute-error
       raise ValueError(
           "_compute_calibration_bin_statistics expects logits for binary"
           " classification of shape (n, 2) for nlabels=2 but got ",
-          logits.get_shape())
+          logits.get_shape())  # pytype: disable=attribute-error
     probabilities = tf.math.softmax(logits, axis=1)
-  if (probabilities.get_shape().as_list()[-1] == 1 or
-      len(probabilities.get_shape().as_list()) == 1):
+  elif (probabilities.get_shape().as_list()[-1] == 1 or
+        len(probabilities.get_shape().as_list()) == 1):
     raise ValueError(
         "_compute_calibration_bin_statistics expects probabilities for binary"
         " classification of shape (n, 2) for nlabels=2 but got ",
@@ -328,15 +328,15 @@ def bayesian_expected_calibration_error(num_bins, logits=None,
     raise ValueError(
         "bayesian_expected_calibration_error expects exactly one of logits or "
         "probabilities.")
-  if probabilities is None:
-    if logits.get_shape().as_list()[-1] == 1:
+  elif probabilities is None:
+    if logits.get_shape().as_list()[-1] == 1:  # pytype: disable=attribute-error
       raise ValueError(
           "bayesian_expected_calibration_error expects logits for binary"
           " classification of shape (n, 2) for nlabels=2 but got ",
-          logits.get_shape())
+          logits.get_shape())  # pytype: disable=attribute-error
     probabilities = tf.math.softmax(logits, axis=1)
-  if (probabilities.get_shape().as_list()[-1] == 1 or
-      len(probabilities.get_shape().as_list()) == 1):
+  elif (probabilities.get_shape().as_list()[-1] == 1 or
+        len(probabilities.get_shape().as_list()) == 1):
     raise ValueError(
         "bayesian_expected_calibration_error expects probabilities for binary"
         " classification of shape (n, 2) for nlabels=2 but got ",

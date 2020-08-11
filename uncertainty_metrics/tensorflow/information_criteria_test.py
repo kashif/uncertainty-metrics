@@ -18,7 +18,7 @@
 from absl import logging
 from absl.testing import parameterized
 
-import tensorflow.compat.v1 as tf  # tf
+import tensorflow.compat.v1 as tf
 import tensorflow_probability as tfp
 import uncertainty_metrics as um
 tfd = tfp.distributions

@@ -41,12 +41,12 @@
 
 import numpy as np
 import scipy.stats
-from sklearn.model_selection import StratifiedKFold
-from sklearn.utils import check_random_state
-from sklearn.utils.validation import check_array
+import sklearn.model_selection
+import sklearn.utils
 
 
-class StratifiedSurvivalKFold(StratifiedKFold):
+# pytype: disable=attribute-error
+class StratifiedSurvivalKFold(sklearn.model_selection.StratifiedKFold):
   """Cross validation with survival outcomes."""
   # Idea thanks to
   # https://scottclowe.com/2016-03-19-stratified-regression-partitions/
@@ -77,7 +77,7 @@ class StratifiedSurvivalKFold(StratifiedKFold):
     left_overs = n % k
 
     if self.shuffle:
-      rng = check_random_state(self.random_state)
+      rng = sklearn.utils.check_random_state(self.random_state)
       fold_order = [rng.choice(k, k, replace=False) for _ in range(n // k)]
       fold_order.append(rng.choice(k, left_overs, replace=False))
     else:
@@ -87,7 +87,8 @@ class StratifiedSurvivalKFold(StratifiedKFold):
     return np.concatenate(fold_order)
 
   def split(self, times, events, groups=None):
-    events = check_array(events, ensure_2d=False, dtype=None)
+    events = sklearn.utils.validation.check_array(
+        events, ensure_2d=False, dtype=None)
     return super().split(times, events, groups)
 
 
@@ -480,6 +481,7 @@ class CensoredCalibrationError(object):
 
     return self._calculate_cross_fit_processes(probs, study_times, event,
                                                hyperparam)
+# pytype: enable=attribute-error
 
 
 def censored_calibration_error(

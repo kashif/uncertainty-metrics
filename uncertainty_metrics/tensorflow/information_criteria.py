@@ -22,7 +22,7 @@ estimated from Monte Carlo approximations to the posterior.
 """
 
 import math
-import tensorflow.compat.v1 as tf  # tf
+import tensorflow.compat.v1 as tf
 
 
 def model_uncertainty(logits):

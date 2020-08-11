@@ -39,9 +39,9 @@
 #   IN THE SOFTWARE.
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
+import scipy.interpolate
 import scipy.stats
-from sklearn.model_selection import StratifiedKFold
+import sklearn.model_selection
 
 
 class SemiparametricCalibrationError(object):
@@ -54,7 +54,9 @@ class SemiparametricCalibrationError(object):
     # Folds are used for cross validation of hyperparameter (smoothness)
     # choices as well as cross fitting of semiparametric nuisance params.
     self.folds = folds
-    self.kf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=708)
+    self.kf = sklearn.model_selection.StratifiedKFold(n_splits=folds,
+                                                      shuffle=True,
+                                                      random_state=708)
     self.weight_trunc = weight_trunc
     self.orthogonal = orthogonal
     self.bootstrap_size = bootstrap_size
@@ -186,8 +188,8 @@ class SemiparametricCalibrationError(object):
       preds = kernel.dot(train_labels) / kernel.sum(axis=1)
     elif self.smoothing == 'spline':
       order = np.argsort(train_probs)
-      s = UnivariateSpline(train_probs[order], train_labels[order],
-                           s=sigma, w=weights)
+      s = scipy.interpolate.UnivariateSpline(
+          train_probs[order], train_labels[order], s=sigma, w=weights)
       preds = s(test_probs)
     else:
       raise Exception(
