@@ -28,6 +28,13 @@ else:
   from uncertainty_metrics.tensorflow import calibration
   from uncertainty_metrics.tensorflow.calibration import bayesian_expected_calibration_error
   from uncertainty_metrics.tensorflow.calibration import ExpectedCalibrationError
+  from uncertainty_metrics.tensorflow import diversity
+  from uncertainty_metrics.tensorflow.diversity import average_pairwise_diversity
+  from uncertainty_metrics.tensorflow.diversity import cosine_distance
+  from uncertainty_metrics.tensorflow.diversity import disagreement
+  from uncertainty_metrics.tensorflow.diversity import kl_divergence
+  from uncertainty_metrics.tensorflow.diversity import logit_kl_divergence
+  from uncertainty_metrics.tensorflow.diversity import lp_distance
   from uncertainty_metrics.tensorflow import information_criteria
   from uncertainty_metrics.tensorflow.information_criteria import model_uncertainty
   from uncertainty_metrics.tensorflow.information_criteria import negative_waic
@@ -43,19 +50,26 @@ else:
   from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
 
   _allowed_symbols = [
+      "average_pairwise_diversity",
       "AUC",
-      "calibration",
+      "bayesian_expected_calibration_error",
       "brier_decomposition",
       "brier_score",
-      "bayesian_expected_calibration_error",
-      "model_uncertainty",
-      "information_criteria",
-      "negative_waic",
-      "importance_sampling_cross_validation",
-      "scoring_rules",
+      "calibration",
+      "cosine_distance",
       "crps_normal_score",
       "crps_score",
+      "disagreement",
+      "diversity",
       "ExpectedCalibrationError",
+      "importance_sampling_cross_validation",
+      "information_criteria",
+      "kl_divergence",
+      "logit_kl_divergence",
+      "lp_distance",
+      "model_uncertainty",
+      "negative_waic",
+      "scoring_rules",
       "__version__",
       "VERSION",
   ]

@@ -17,6 +17,7 @@ pip install "git+https://github.com/google/uncertainty_metrics.git#egg=uncertain
 
 There is not yet a stable version (nor an official release of this library).
 All APIs are subject to change.
+
 ## Getting Started
 
 Here are some examples to get you started.
@@ -133,6 +134,7 @@ Uncertainty Metrics provides several types of measures of probabilistic error:
 - Calibration error
 - Proper scoring rules
 - Information critera
+- Diversity
 - AUC/Rejection
 - Visualization tools
 
