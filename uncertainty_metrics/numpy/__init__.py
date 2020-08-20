@@ -15,77 +15,58 @@
 
 """Uncertainty Metrics with NumPy backend."""
 
-# Make the NumPy backend be optional. The namespace is empty if NumPy
-# is not available.
-# pylint: disable=g-import-not-at-top
-try:
-  import numpy as np  # pylint: disable=unused-import
-  import matplotlib.pyplot
-  import scipy
-  import sklearn
-except ImportError:
-  pass
-else:
-  from uncertainty_metrics.numpy import visualization
-  from uncertainty_metrics.numpy.censored_calibration_error import CCE
-  from uncertainty_metrics.numpy.censored_calibration_error import cce
-  from uncertainty_metrics.numpy.censored_calibration_error import cce_conf_int
-  from uncertainty_metrics.numpy.general_calibration_error import ace
-  from uncertainty_metrics.numpy.general_calibration_error import adaptive_calibration_error
-  from uncertainty_metrics.numpy.general_calibration_error import compute_all_metrics
-  from uncertainty_metrics.numpy.general_calibration_error import ece
-  from uncertainty_metrics.numpy.general_calibration_error import gce
-  from uncertainty_metrics.numpy.general_calibration_error import general_calibration_error
-  from uncertainty_metrics.numpy.general_calibration_error import GeneralCalibrationError
-  from uncertainty_metrics.numpy.general_calibration_error import rmsce
-  from uncertainty_metrics.numpy.general_calibration_error import root_mean_squared_calibration_error
-  from uncertainty_metrics.numpy.general_calibration_error import sce
-  from uncertainty_metrics.numpy.general_calibration_error import static_calibration_error
-  from uncertainty_metrics.numpy.general_calibration_error import tace
-  from uncertainty_metrics.numpy.general_calibration_error import thresholded_adaptive_calibration_error
-  from uncertainty_metrics.numpy.visualization import reliability_diagram
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import semiparametric_calibration_error
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import semiparametric_calibration_error_conf_int
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import SemiparametricCalibrationError
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import SPCE
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import spce
-  from uncertainty_metrics.numpy.semiparametric_calibration_error import spce_conf_int
-  from uncertainty_metrics.version import __version__
-  from uncertainty_metrics.version import VERSION
+from uncertainty_metrics.numpy import visualization
+from uncertainty_metrics.numpy.censored_calibration_error import CCE
+from uncertainty_metrics.numpy.censored_calibration_error import cce
+from uncertainty_metrics.numpy.censored_calibration_error import cce_conf_int
+from uncertainty_metrics.numpy.general_calibration_error import ace
+from uncertainty_metrics.numpy.general_calibration_error import adaptive_calibration_error
+from uncertainty_metrics.numpy.general_calibration_error import compute_all_metrics
+from uncertainty_metrics.numpy.general_calibration_error import ece
+from uncertainty_metrics.numpy.general_calibration_error import gce
+from uncertainty_metrics.numpy.general_calibration_error import general_calibration_error
+from uncertainty_metrics.numpy.general_calibration_error import GeneralCalibrationError
+from uncertainty_metrics.numpy.general_calibration_error import rmsce
+from uncertainty_metrics.numpy.general_calibration_error import root_mean_squared_calibration_error
+from uncertainty_metrics.numpy.general_calibration_error import sce
+from uncertainty_metrics.numpy.general_calibration_error import static_calibration_error
+from uncertainty_metrics.numpy.general_calibration_error import tace
+from uncertainty_metrics.numpy.general_calibration_error import thresholded_adaptive_calibration_error
+from uncertainty_metrics.numpy.semiparametric_calibration_error import semiparametric_calibration_error
+from uncertainty_metrics.numpy.semiparametric_calibration_error import semiparametric_calibration_error_conf_int
+from uncertainty_metrics.numpy.semiparametric_calibration_error import SemiparametricCalibrationError
+from uncertainty_metrics.numpy.semiparametric_calibration_error import SPCE
+from uncertainty_metrics.numpy.semiparametric_calibration_error import spce
+from uncertainty_metrics.numpy.semiparametric_calibration_error import spce_conf_int
+from uncertainty_metrics.numpy.visualization import reliability_diagram
+from uncertainty_metrics.version import __version__
+from uncertainty_metrics.version import VERSION
 
-  _allowed_symbols = [
-      "ace",
-      "adaptive_calibration_error",
-      "CCE",
-      "cce",
-      "cce_conf_int",
-      "compute_all_metrics",
-      "ece",
-      "gce",
-      "general_calibration_error",
-      "GeneralCalibrationError",
-      "reliability_diagram",
-      "rmsce",
-      "root_mean_squared_calibration_error",
-      "sce",
-      "semiparametric_calibration_error",
-      "semiparametric_calibration_error_conf_int",
-      "SemiparametricCalibrationError",
-      "SPCE",
-      "spce",
-      "spce_conf_int",
-      "static_calibration_error",
-      "tace",
-      "thresholded_adaptive_calibration_error",
-      "visualization",
-      "__version__",
-      "VERSION",
-  ]
-
-  try:
-    from tensorflow.python.util.all_util import remove_undocumented  # pylint: disable=g-direct-tensorflow-import
-  except ImportError:
-    __all__ = _allowed_symbols
-  else:
-    remove_undocumented(__name__, _allowed_symbols)
-# pylint: enable=g-import-not-at-top
+__all__ = [
+    "ace",
+    "adaptive_calibration_error",
+    "CCE",
+    "cce",
+    "cce_conf_int",
+    "compute_all_metrics",
+    "ece",
+    "gce",
+    "general_calibration_error",
+    "GeneralCalibrationError",
+    "reliability_diagram",
+    "rmsce",
+    "root_mean_squared_calibration_error",
+    "sce",
+    "semiparametric_calibration_error",
+    "semiparametric_calibration_error_conf_int",
+    "SemiparametricCalibrationError",
+    "SPCE",
+    "spce",
+    "spce_conf_int",
+    "static_calibration_error",
+    "tace",
+    "thresholded_adaptive_calibration_error",
+    "visualization",
+    "__version__",
+    "VERSION",
+]
