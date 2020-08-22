@@ -35,12 +35,13 @@ def logit_kl_divergence(logits_1, logits_2):
   return tf.reduce_mean(vals)
 
 
-def kl_divergence(p, q):
+def kl_divergence(p, q, clip=False):
   """Generalized KL divergence [1] for unnormalized distributions.
 
   Args:
     p: tf.Tensor.
-    q: tf.Tensor
+    q: tf.Tensor.
+    clip: bool.
 
   Returns:
     tf.Tensor of the Kullback-Leibler divergences per example.
@@ -51,7 +52,10 @@ def kl_divergence(p, q):
   matrix factorization." Advances in neural information processing systems.
   2001.
   """
-  return tf.reduce_sum(p * tf.math.log(p / q) - p + q, axis=-1)
+  if clip:
+    p = tf.clip_by_value(p, tf.keras.backend.epsilon(), 1)
+    q = tf.clip_by_value(q, tf.keras.backend.epsilon(), 1)
+  return tf.reduce_sum(p * tf.math.log(p / q), axis=-1)
 
 
 def lp_distance(x, y, p=1):
