@@ -85,7 +85,6 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
     self.counts = self.add_weight(
         "counts", shape=(num_bins,), initializer=tf.zeros_initializer)
 
-  @tf.function
   def update_state(self, labels, probabilities, **kwargs):
     """Updates this metric.
 
