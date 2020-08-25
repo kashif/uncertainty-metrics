@@ -37,6 +37,11 @@ def mean(inputs):
     return np.mean(inputs)
 
 
+def binary_converter(probs):
+  """Converts a binary probability vector into a matrix."""
+  return np.array([[1-p, p] for p in probs])
+
+
 def to_image(fig):
   """Create image from plot."""
   fig.tight_layout(pad=1)
@@ -91,8 +96,8 @@ def plot_diagram(probs, labels, y_axis='accuracy'):
   return fig
 
 
-def reliability_diagram(probs,
-                        labels,
+def reliability_diagram(labels,
+                        probs,
                         class_conditional=False,
                         y_axis='accuracy',
                         img=False):
@@ -103,8 +108,8 @@ def reliability_diagram(probs,
     exclusive bins.
 
   Args:
-    probs: probability matrix out of a softmax.
     labels: label vector.
+    probs: probability matrix out of a softmax.
     class_conditional: whether to visualize every class independently, or
       conflate classes.
     y_axis: takes 'accuracy or 'error'. Set y_axis to 'error' to graph the
@@ -113,10 +118,22 @@ def reliability_diagram(probs,
   Returns:
     fig: matplotlib.pyplot figure.
   """
-
   probs = np.array(probs)
   labels = np.array(labels)
-  labels_matrix = one_hot_encode(labels)
+  if probs.ndim == 2:
+    num_classes = probs.shape[1]
+    if num_classes == 1:
+      probs = probs[:, 0]
+      probs = binary_converter(probs)
+      num_classes = 2
+  elif probs.ndim == 1:
+    # Cover binary case
+    probs = binary_converter(probs)
+    num_classes = 2
+  else:
+    raise ValueError('Probs must have 1 or 2 dimensions.')
+
+  labels_matrix = one_hot_encode(labels, probs.shape[1])
   if class_conditional:
     for class_index in range(probs.shape[1]):
       if img:
