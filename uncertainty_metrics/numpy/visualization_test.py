@@ -45,5 +45,13 @@ class VisualizationTest(absltest.TestCase):
     rd = um.reliability_diagram(labels, probs)
     self.assertGreater(rd.get_figwidth(), 1)
 
+  def test_confidence_vs_accuracy_diagram(self):
+    in_probs = np.array([np.random.rand() for _ in range(10000)])
+    in_labels = np.array([np.random.binomial(1, p=p) for p in in_probs])
+    out_probs = np.array([np.random.rand() for _ in range(10000)])
+
+    acd = um.plot_confidence_vs_accuracy_diagram(in_probs, in_labels, out_probs)
+    self.assertGreater(acd.figure.get_figwidth(), 1)
+
 if __name__ == '__main__':
   absltest.main()

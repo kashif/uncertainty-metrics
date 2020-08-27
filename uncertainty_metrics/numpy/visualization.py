@@ -42,6 +42,23 @@ def binary_converter(probs):
   return np.array([[1-p, p] for p in probs])
 
 
+def verify_probability_shapes(probs):
+  """Verify shapes of probs vectors and possibly stack 1D probs into 2D."""
+  if probs.ndim == 2:
+    num_classes = probs.shape[1]
+    if num_classes == 1:
+      probs = probs[:, 0]
+      probs = binary_converter(probs)
+      num_classes = 2
+  elif probs.ndim == 1:
+    # Cover binary case
+    probs = binary_converter(probs)
+    num_classes = 2
+  else:
+    raise ValueError('Probs must have 1 or 2 dimensions.')
+  return probs, num_classes
+
+
 def to_image(fig):
   """Create image from plot."""
   fig.tight_layout(pad=1)
@@ -120,18 +137,7 @@ def reliability_diagram(labels,
   """
   probs = np.array(probs)
   labels = np.array(labels)
-  if probs.ndim == 2:
-    num_classes = probs.shape[1]
-    if num_classes == 1:
-      probs = probs[:, 0]
-      probs = binary_converter(probs)
-      num_classes = 2
-  elif probs.ndim == 1:
-    # Cover binary case
-    probs = binary_converter(probs)
-    num_classes = 2
-  else:
-    raise ValueError('Probs must have 1 or 2 dimensions.')
+  probs, _ = verify_probability_shapes(probs)
 
   labels_matrix = one_hot_encode(labels, probs.shape[1])
   if class_conditional:
@@ -148,3 +154,70 @@ def reliability_diagram(labels,
           plot_diagram(probs.flatten(), labels_matrix.flatten(), y_axis))
     else:
       return plot_diagram(probs.flatten(), labels_matrix.flatten(), y_axis)
+
+
+def plot_confidence_vs_accuracy_diagram(in_probs,
+                                        in_labels,
+                                        out_probs,
+                                        num_thresholds=20,
+                                        ax=None,
+                                        **plot_kwargs):
+  """Accuracy vs confidence diagrams plotting confidence against accuracy.
+
+  Accuracy vs confidence diagrams are plotted to measure a model's OOD
+  performance by evaluating the accuracy of detecting OOD samples only on cases
+  where the model's confidence is above a threshold. We define confidence as the
+  maximum of the class probabilities, and consider all cases where the
+  confidence is above a threshold. For in-distribution cases, we evaluate the
+  label prediction accuracy, and for OOD cases, we consider all predictions
+  incorrect. For further reference, refer to Section 3.6 of
+  https://arxiv.org/abs/1612.01474.
+
+  Args:
+    in_probs: probability matrix for in-distribution points.
+    in_labels: label vector for in-distribution points.
+    out_probs: probability matrix out of a softmax for out_of_distribution
+      points.
+    num_thresholds: (int) number of thresholds in [0., 0.99] to evaluate
+      accuracy of OOD detection on.
+    ax: matplotlib.pyplot Axes object to plot the figure on. If None, the latest
+      figure used is grabbed using `plt.gca()`.
+    **plot_kwargs: Optional plotting arguments to pass into `ax.plot()`.
+  Returns:
+    fig: matplotlib.pyplot Axes object.
+  """
+  in_probs = np.array(in_probs)
+  out_probs = np.array(out_probs)
+  in_labels = np.array(in_labels)
+  in_probs, _ = verify_probability_shapes(in_probs)
+  out_probs, _ = verify_probability_shapes(out_probs)
+
+  thresholds = np.linspace(0.0, 0.99, num=num_thresholds)
+  in_confidences = np.max(in_probs, axis=-1)
+  out_confidences = np.max(out_probs, axis=-1)
+  in_predictions = np.argmax(in_probs, axis=-1)
+  in_predictions_correct = (in_predictions == in_labels)
+  accuracies = []
+  plotting_thresholds = []
+  for i in thresholds:
+    # Check that there are points above the threshold
+    if np.sum(in_confidences >= i) + np.sum(out_confidences >= i) > 0:
+      in_above_threshold_correct = in_predictions_correct[in_confidences >= i]
+      out_above_threshold_predictions = np.zeros(np.sum(out_confidences >= i))
+
+      all_predictions = np.hstack([in_above_threshold_correct.astype('int'),
+                                   out_above_threshold_predictions])
+      accuracies.append(np.mean(all_predictions))
+      plotting_thresholds.append(i)
+    else:
+      break
+
+  if ax is None:
+    ax = plt.gca()
+  ax.plot(plotting_thresholds, accuracies, **plot_kwargs)
+  ax.set_xlabel(r'Confidence Threshold $\tau$')
+  ax.set_ylabel(r'Accuracy on examples $p(y|x) \geq \tau$')
+  ax.set_title('Accuracy vs Confidence Diagram', fontsize=20)
+  ax.set_ylim([0.0, 1.0])
+  ax.set_xlim([0.0, 1.0])
+  return ax

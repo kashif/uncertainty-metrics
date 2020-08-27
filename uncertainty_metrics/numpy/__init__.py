@@ -38,6 +38,7 @@ from uncertainty_metrics.numpy.semiparametric_calibration_error import Semiparam
 from uncertainty_metrics.numpy.semiparametric_calibration_error import SPCE
 from uncertainty_metrics.numpy.semiparametric_calibration_error import spce
 from uncertainty_metrics.numpy.semiparametric_calibration_error import spce_conf_int
+from uncertainty_metrics.numpy.visualization import plot_confidence_vs_accuracy_diagram
 from uncertainty_metrics.numpy.visualization import reliability_diagram
 from uncertainty_metrics.version import __version__
 from uncertainty_metrics.version import VERSION
@@ -53,6 +54,7 @@ __all__ = [
     "gce",
     "general_calibration_error",
     "GeneralCalibrationError",
+    "plot_confidence_vs_accuracy_diagram",
     "reliability_diagram",
     "rmsce",
     "root_mean_squared_calibration_error",
