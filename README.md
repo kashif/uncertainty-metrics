@@ -81,9 +81,9 @@ ensemble_probs = tf.reduce_mean(model, axis=0)
 # Calculate individual calibration error.
 individual_eces = []
 for i in range(ensemble_size):
-  individual_eces.append(um.ece(probs[i], labels, num_bins=15))
+  individual_eces.append(um.ece(labels, probs[i], num_bins=15))
   
-ensemble_ece = um.ece(ensemble_probs, labels, num_bins=15)
+ensemble_ece = um.ece(labels, ensemble_probs, num_bins=15)
 ```
 
 We collect the ECE in the following table.
@@ -107,7 +107,7 @@ ensemble_metric = um.GeneralCalibrationError(
     class_conditional=False,
     max_prob=True,
     norm='l1')
-ensemble_metric.update_state(ensemble_probs, labels)
+ensemble_metric.update_state(labels, ensemble_probs)
 
 individual_metric = um.GeneralCalibrationError(
     num_bins=15,
@@ -116,7 +116,7 @@ individual_metric = um.GeneralCalibrationError(
     max_prob=True,
     norm='l1')
 for i in range(4)
-  individual_metric.update_state(probs[i], labels)
+  individual_metric.update_state(labels, probs[i])
   
 ensemble_reliability = ensemble_metric.accuracies - ensemble_metric.confidences
 individual_reliability = (
@@ -221,7 +221,7 @@ in the following code we could remove `labels_predicted`.)
 ```python
 features, labels = ...  # get from minibatch
 probs = model(features)
-ece = um.ece(probs=probs, labels=labels, num_bins=10)
+ece = um.ece(labels=labels, probs=probs, num_bins=10)
 ```
 
 __Example: Bayesian Expected Calibration Error.__
