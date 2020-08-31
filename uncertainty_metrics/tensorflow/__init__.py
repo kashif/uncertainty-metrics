@@ -29,6 +29,8 @@ from uncertainty_metrics.tensorflow.diversity import double_fault
 from uncertainty_metrics.tensorflow.diversity import kl_divergence
 from uncertainty_metrics.tensorflow.diversity import logit_kl_divergence
 from uncertainty_metrics.tensorflow.diversity import lp_distance
+from uncertainty_metrics.tensorflow.information_criteria import ensemble_cross_entropy
+from uncertainty_metrics.tensorflow.information_criteria import gibbs_cross_entropy
 from uncertainty_metrics.tensorflow.information_criteria import importance_sampling_cross_validation
 from uncertainty_metrics.tensorflow.information_criteria import model_uncertainty
 from uncertainty_metrics.tensorflow.information_criteria import negative_waic
@@ -52,7 +54,9 @@ __all__ = [
     "disagreement",
     "double_fault",
     "diversity",
+    "ensemble_cross_entropy",
     "ExpectedCalibrationError",
+    "gibbs_cross_entropy",
     "importance_sampling_cross_validation",
     "information_criteria",
     "kl_divergence",

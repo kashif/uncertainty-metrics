@@ -25,6 +25,70 @@ import math
 import tensorflow.compat.v1 as tf
 
 
+def ensemble_cross_entropy(labels, logits, aggregate=True):
+  """Cross-entropy of an ensemble distribution.
+
+  For each datapoint (x,y), the ensemble's negative log-probability is:
+
+  ```
+  -log p(y|x) = -log sum_{m=1}^{ensemble_size} exp(log p(y|x,theta_m)) +
+                log ensemble_size.
+  ```
+
+  The cross entropy is the expected negative log-probability with respect to
+  the true data distribution.
+
+  Args:
+    labels: tf.Tensor of shape [...].
+    logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
+    aggregate: bool, whether or not to average over the batch.
+
+  Returns:
+    tf.Tensor of shape [...].
+  """
+  labels = tf.cast(labels, tf.int32)
+  logits = tf.convert_to_tensor(logits)
+  ensemble_size = float(logits.shape[0])
+  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
+      labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
+      logits=logits)
+  nll = -tf.reduce_logsumexp(-nll, axis=0) + tf.math.log(ensemble_size)
+  if aggregate:
+    nll = tf.reduce_mean(nll)
+  return nll
+
+
+def gibbs_cross_entropy(labels, logits, aggregate=True):
+  """Average cross entropy for ensemble members (Gibbs cross entropy).
+
+  For each datapoint (x,y), the ensemble's Gibbs cross entropy is:
+
+  ```
+  - (1/ensemble_size) sum_{m=1}^ensemble_size log p(y|x,theta_m).
+  ```
+
+  The Gibbs cross entropy approximates the average cross entropy of a single
+  model drawn from the (Gibbs) ensemble.
+
+  Args:
+    labels: tf.Tensor of shape [...].
+    logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
+    aggregate: bool, whether or not to average over the batch.
+
+  Returns:
+    tf.Tensor of shape [...].
+  """
+  labels = tf.cast(labels, tf.int32)
+  logits = tf.convert_to_tensor(logits)
+  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
+      labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
+      logits=logits)
+  nll = tf.reduce_mean(nll, axis=0)
+  if aggregate:
+    nll = tf.reduce_mean(nll)
+  return nll
+
+
 def model_uncertainty(logits):
   """Mutual information between the categorical label and the model parameters.
 

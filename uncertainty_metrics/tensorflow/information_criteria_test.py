@@ -26,6 +26,23 @@ tfd = tfp.distributions
 eps = 1e-6
 
 
+class EnsembleTest(tf.test.TestCase):
+
+  def testEnsembleCrossEntropy(self):
+    """Checks that ensemble cross entropy lower-bounds Gibbs cross entropy."""
+    batch_size = 2
+    num_classes = 3
+    ensemble_size = 5
+    labels = tf.random.uniform(
+        [batch_size], minval=0, maxval=num_classes, dtype=tf.int32)
+    logits = tf.random.normal([ensemble_size, batch_size, num_classes])
+    ensemble_error = um.ensemble_cross_entropy(labels, logits)
+    gibbs_error = um.gibbs_cross_entropy(labels, logits)
+    self.assertEqual(ensemble_error.shape, ())
+    self.assertEqual(gibbs_error.shape, ())
+    self.assertLessEqual(ensemble_error, gibbs_error)
+
+
 class MutualInformationTest(tf.test.TestCase):
 
   def setUp(self, seed=42):
