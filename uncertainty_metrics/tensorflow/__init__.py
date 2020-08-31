@@ -25,6 +25,7 @@ from uncertainty_metrics.tensorflow.calibration import ExpectedCalibrationError
 from uncertainty_metrics.tensorflow.diversity import average_pairwise_diversity
 from uncertainty_metrics.tensorflow.diversity import cosine_distance
 from uncertainty_metrics.tensorflow.diversity import disagreement
+from uncertainty_metrics.tensorflow.diversity import double_fault
 from uncertainty_metrics.tensorflow.diversity import kl_divergence
 from uncertainty_metrics.tensorflow.diversity import logit_kl_divergence
 from uncertainty_metrics.tensorflow.diversity import lp_distance
@@ -49,6 +50,7 @@ __all__ = [
     "crps_normal_score",
     "crps_score",
     "disagreement",
+    "double_fault",
     "diversity",
     "ExpectedCalibrationError",
     "importance_sampling_cross_validation",
