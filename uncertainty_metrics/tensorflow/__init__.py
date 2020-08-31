@@ -15,10 +15,12 @@
 
 """Uncertainty Metrics with Tensorflow backend."""
 
+from uncertainty_metrics.tensorflow import accuracy
 from uncertainty_metrics.tensorflow import calibration
 from uncertainty_metrics.tensorflow import diversity
 from uncertainty_metrics.tensorflow import information_criteria
 from uncertainty_metrics.tensorflow import scoring_rules
+from uncertainty_metrics.tensorflow.accuracy import OracleCollaborativeAccuracy
 from uncertainty_metrics.tensorflow.auc import AUC
 from uncertainty_metrics.tensorflow.calibration import bayesian_expected_calibration_error
 from uncertainty_metrics.tensorflow.calibration import ExpectedCalibrationError
@@ -42,6 +44,7 @@ from uncertainty_metrics.version import __version__
 from uncertainty_metrics.version import VERSION
 
 __all__ = [
+    "accuracy",
     "average_pairwise_diversity",
     "AUC",
     "bayesian_expected_calibration_error",
@@ -64,6 +67,7 @@ __all__ = [
     "lp_distance",
     "model_uncertainty",
     "negative_waic",
+    "OracleCollaborativeAccuracy",
     "scoring_rules",
     "__version__",
     "VERSION",
