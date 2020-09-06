@@ -30,6 +30,7 @@ class EnsembleTest(tf.test.TestCase):
 
   def testEnsembleCrossEntropy(self):
     """Checks that ensemble cross entropy lower-bounds Gibbs cross entropy."""
+    # For multi-class classifications
     batch_size = 2
     num_classes = 3
     ensemble_size = 5
@@ -38,6 +39,18 @@ class EnsembleTest(tf.test.TestCase):
     logits = tf.random.normal([ensemble_size, batch_size, num_classes])
     ensemble_error = um.ensemble_cross_entropy(labels, logits)
     gibbs_error = um.gibbs_cross_entropy(labels, logits)
+    self.assertEqual(ensemble_error.shape, ())
+    self.assertEqual(gibbs_error.shape, ())
+    self.assertLessEqual(ensemble_error, gibbs_error)
+
+    # For binary classifications
+    num_classes = 1
+    labels = tf.random.uniform(
+        [batch_size], minval=0, maxval=num_classes, dtype=tf.float32)
+    logits = tf.random.normal([ensemble_size, batch_size, num_classes])
+    loss_logits = tf.squeeze(logits, axis=-1)
+    ensemble_error = um.ensemble_cross_entropy(labels, loss_logits, binary=True)
+    gibbs_error = um.gibbs_cross_entropy(labels, loss_logits, binary=True)
     self.assertEqual(ensemble_error.shape, ())
     self.assertEqual(gibbs_error.shape, ())
     self.assertLessEqual(ensemble_error, gibbs_error)

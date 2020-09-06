@@ -25,7 +25,7 @@ import math
 import tensorflow.compat.v1 as tf
 
 
-def ensemble_cross_entropy(labels, logits, aggregate=True):
+def ensemble_cross_entropy(labels, logits, binary=False, aggregate=True):
   """Cross-entropy of an ensemble distribution.
 
   For each datapoint (x,y), the ensemble's negative log-probability is:
@@ -41,24 +41,31 @@ def ensemble_cross_entropy(labels, logits, aggregate=True):
   Args:
     labels: tf.Tensor of shape [...].
     logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
+    binary: bool, whether it is a binary classification (sigmoid as activation).
     aggregate: bool, whether or not to average over the batch.
 
   Returns:
     tf.Tensor of shape [...].
   """
-  labels = tf.cast(labels, tf.int32)
   logits = tf.convert_to_tensor(logits)
   ensemble_size = float(logits.shape[0])
-  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
-      logits=logits)
-  nll = -tf.reduce_logsumexp(-nll, axis=0) + tf.math.log(ensemble_size)
+  if binary:
+    ce = tf.nn.sigmoid_cross_entropy_with_logits(
+        labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)),
+        logits=logits
+    )
+  else:
+    labels = tf.cast(labels, tf.int32)
+    ce = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
+        logits=logits)
+  nll = -tf.reduce_logsumexp(-ce, axis=0) + tf.math.log(ensemble_size)
   if aggregate:
     nll = tf.reduce_mean(nll)
   return nll
 
 
-def gibbs_cross_entropy(labels, logits, aggregate=True):
+def gibbs_cross_entropy(labels, logits, binary=False, aggregate=True):
   """Average cross entropy for ensemble members (Gibbs cross entropy).
 
   For each datapoint (x,y), the ensemble's Gibbs cross entropy is:
@@ -73,16 +80,23 @@ def gibbs_cross_entropy(labels, logits, aggregate=True):
   Args:
     labels: tf.Tensor of shape [...].
     logits: tf.Tensor of shape [ensemble_size, ..., num_classes].
+    binary: bool, whether it is a binary classification (sigmoid as activation).
     aggregate: bool, whether or not to average over the batch.
 
   Returns:
     tf.Tensor of shape [...].
   """
-  labels = tf.cast(labels, tf.int32)
   logits = tf.convert_to_tensor(logits)
-  nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
-      logits=logits)
+  if binary:
+    nll = tf.nn.sigmoid_cross_entropy_with_logits(
+        labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)),
+        logits=logits
+    )
+  else:
+    labels = tf.cast(labels, tf.int32)
+    nll = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=tf.broadcast_to(labels[tf.newaxis, ...], tf.shape(logits)[:-1]),
+        logits=logits)
   nll = tf.reduce_mean(nll, axis=0)
   if aggregate:
     nll = tf.reduce_mean(nll)
