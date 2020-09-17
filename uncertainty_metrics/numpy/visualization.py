@@ -221,3 +221,96 @@ def plot_confidence_vs_accuracy_diagram(in_probs,
   ax.set_ylim([0.0, 1.0])
   ax.set_xlim([0.0, 1.0])
   return ax
+
+
+def plot_rejection_classification_diagram(in_probs,
+                                          in_labels,
+                                          out_probs,
+                                          num_thresholds=100,
+                                          plot_theoretical_max=True,
+                                          ax=None,
+                                          **plot_kwargs):
+  """Accuracy vs percent of data rejected diagrams.
+
+  Rejection classification diagrams are plotted to measure a model's OOD
+  performance by evaluating the accuracy of detecting OOD samples only on the
+  percentage of data not rejected by a certain confidence threshold, considering
+  predictions on all OOD points to be incorrect. The Theoretical Maximum is
+  computed by assuming a model that has perfect accuracy on the in-distribution
+  test set and is able to reject all OOD data before any in-distribution data.
+  For further reference, refer to Section 4.2 of
+  https://arxiv.org/abs/2003.02037.
+
+  Args:
+    in_probs: probability matrix for in-distribution points.
+    in_labels: label vector for in-distribution points.
+    out_probs: probability matrix out of a softmax for out_of_distribution
+      points.
+    num_thresholds: (int) number of percentages of rejection in [0., 0.99] to
+    evaluate accuracy of OOD detection on.
+    plot_theoretical_max: (bool) whether to plot the thoeretical maximum
+      performance possible.
+    ax: matplotlib.pyplot Axes object to plot the figure on. If None, the latest
+      figure used is grabbed using `plt.gca()`.
+    **plot_kwargs: Optional plotting arguments to pass into `ax.plot()`.
+  Returns:
+    fig: matplotlib.pyplot Axes object.
+  """
+  in_probs = np.array(in_probs)
+  out_probs = np.array(out_probs)
+  in_probs, _ = verify_probability_shapes(in_probs)
+  out_probs, _ = verify_probability_shapes(out_probs)
+
+  in_labels = np.array(in_labels)
+  percents_rejected = np.linspace(0.0, 0.99, num=num_thresholds)
+  # Iterate over fine-grained thresholds to find closest corresponding threshold
+  thresholds = np.linspace(0.0, 1.0, num=100 * num_thresholds)
+  in_confidences = np.max(in_probs, axis=1)
+  out_confidences = np.max(out_probs, axis=1)
+  confidences = np.hstack([in_confidences, out_confidences])
+  in_predictions = np.argmax(in_probs, axis=1)
+  in_predictions_correct = (in_predictions == in_labels)
+  accuracies = []
+  theoretical_max_accuracies = []
+
+  num_in = in_confidences.shape[0]
+  num_out = out_confidences.shape[0]
+  percent_out = num_out / (num_in + num_out)
+
+  # Initialize variables to run through a subset of thresholds for each p
+  # instead of running through the entire range of thresholds.
+  init_threshold = 0
+  final_threshold = len(thresholds)
+
+  for p in percents_rejected:
+    if p < percent_out:
+      theoretical_max_accuracies.append(
+          num_in / ((1. - p) * (num_in + num_out)))
+    else:
+      theoretical_max_accuracies.append(1.0)
+    for i in range(init_threshold, final_threshold):
+      threshold = thresholds[i]
+      p_at_threshold = np.sum(confidences < threshold) / (num_in + num_out)
+      if p_at_threshold >= p:
+        num_in_above_p = np.sum(in_confidences >= threshold)
+        num_out_above_p = np.sum(out_confidences >= threshold)
+        num_in_above_p_correct = np.sum(
+            in_predictions_correct[in_confidences >= threshold])
+
+        accuracies.append((num_in_above_p_correct + 1e-6) /
+                          (num_in_above_p + num_out_above_p + 1e-6))
+        # For future percents_rejected, only look at thresholds greater than i
+        init_threshold = i
+        break
+
+  if ax is None:
+    ax = plt.gca()
+  ax.plot(percents_rejected, accuracies, **plot_kwargs)
+  if plot_theoretical_max:
+    ax.plot(percents_rejected, theoretical_max_accuracies,
+            label='Theoretical maximum', color='g')
+  ax.set_xlabel(r'Percent of data rejected by uncertainty')
+  ax.set_ylabel(r'Accuracy')
+  ax.set_title('Rejection Classification Diagram', fontsize=20)
+  ax.set_xlim([0.0, 1.0])
+  return ax
