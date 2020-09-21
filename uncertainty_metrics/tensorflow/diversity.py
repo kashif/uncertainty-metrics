@@ -136,3 +136,47 @@ def average_pairwise_diversity(probs, num_models, error=None):
       'average_kl': average_kl_divergence,
       'cosine_similarity': average_cosine_distance
   }
+
+
+def variance_bound(probs, labels, num_models):
+  """Empirical upper bound on the variance for an ensemble model.
+
+  This term was introduced in arxiv.org/abs/1912.08335 to obtain a tighter
+  PAC-Bayes upper bound; we use the empirical variance of Theorem 4.
+
+  Args:
+    probs: tensor of shape `[num_models, batch_size, n_classes]`.
+    labels: tensor of sparse labels, of shape `[batch_size]`.
+    num_models: number of models in the ensemble.
+
+  Returns:
+    A (float) upper bound on the empirical ensemble variance.
+  """
+  if probs.shape[0] != num_models:
+    raise ValueError('The number of models {0} does not match '
+                     'the probs length {1}'.format(num_models, probs.shape[0]))
+  batch_size = probs.shape[1]
+  labels = tf.cast(labels, dtype=tf.int32)
+
+  # batch_indices maps point `i` to its associated label `l_i`.
+  batch_indices = tf.stack([tf.range(batch_size), labels], axis=1)
+  # Shape: [num_models, batch_size, batch_size].
+  batch_indices = batch_indices * tf.ones([num_models, 1, 1], dtype=tf.int32)
+
+  # Replicate batch_indices across the `num_models` index.
+  ensemble_indices = tf.reshape(tf.range(num_models), [num_models, 1, 1])
+  ensemble_indices = ensemble_indices * tf.ones([1, batch_size, 1],
+                                                dtype=tf.int32)
+  # Shape: [num_models, batch_size, n_classes].
+  indices = tf.concat([ensemble_indices, batch_indices], axis=-1)
+
+  # Shape: [n_models, n_points].
+  # per_model_probs[n, i] contains the probability according to model `n` that
+  # point `i` in the batch has its true label.
+  per_model_probs = tf.gather_nd(probs, indices)
+
+  max_probs = tf.reduce_max(per_model_probs, axis=0)  # Shape: [n_points]
+  avg_probs = tf.reduce_mean(per_model_probs, axis=0)  # Shape: [n_points]
+
+  return .5 * tf.reduce_mean(
+      tf.square((per_model_probs - avg_probs) / max_probs))

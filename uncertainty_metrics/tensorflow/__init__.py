@@ -31,6 +31,7 @@ from uncertainty_metrics.tensorflow.diversity import double_fault
 from uncertainty_metrics.tensorflow.diversity import kl_divergence
 from uncertainty_metrics.tensorflow.diversity import logit_kl_divergence
 from uncertainty_metrics.tensorflow.diversity import lp_distance
+from uncertainty_metrics.tensorflow.diversity import variance_bound
 from uncertainty_metrics.tensorflow.information_criteria import ensemble_cross_entropy
 from uncertainty_metrics.tensorflow.information_criteria import gibbs_cross_entropy
 from uncertainty_metrics.tensorflow.information_criteria import importance_sampling_cross_validation
@@ -69,6 +70,7 @@ __all__ = [
     "negative_waic",
     "OracleCollaborativeAccuracy",
     "scoring_rules",
+    "variance_bound",
     "__version__",
     "VERSION",
 ]
