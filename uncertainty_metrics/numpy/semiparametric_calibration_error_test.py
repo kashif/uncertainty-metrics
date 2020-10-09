@@ -20,6 +20,7 @@
 
 from absl.testing import absltest
 import numpy as np
+import sklearn.model_selection
 import uncertainty_metrics.numpy as um
 
 
@@ -58,6 +59,20 @@ class SemiparametricCalibrationErrorTest(absltest.TestCase):
     self.assertLessEqual(lower_ci, 1)
     self.assertGreaterEqual(upper_ci, 0)
     self.assertLessEqual(upper_ci, 1)
+
+  def test_mean_plug_in(self):
+    n = 2000
+    probs = np.random.rand(n)
+    calibration_error = 0.7 * probs ** 2 + 0.3 * probs
+    # Continuous outcomes previously weren't allowed because StratifiedKFold
+    # only allows discrete outcomes. Useful for testing to have an oracle
+    # that passes in true calibration probabilities as outcomes, which are
+    # continuous. Therefore, pass in a KFold object.
+    ce = um.SPCE(smoothing='spline',
+                 fold_generator=sklearn.model_selection.KFold(5, shuffle=True))
+    est = ce.rms_calibration_error(probs, calibration_error)
+    self.assertGreaterEqual(est, 0)
+    self.assertLessEqual(est, 1)
 
 
 if __name__ == '__main__':

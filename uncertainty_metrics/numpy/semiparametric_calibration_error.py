@@ -50,13 +50,15 @@ class SemiparametricCalibrationError(object):
   def __init__(self, folds=5, weight_trunc=0.05, weights='constant',
                bootstrap_size=500, orthogonal=False, normalize=False,
                smoothing='kernel', hyperparam_attempts=50,
-               default_hyperparam_range=None, verbose=False):
+               default_hyperparam_range=None, verbose=False,
+               fold_generator=None):
     # Folds are used for cross validation of hyperparameter (smoothness)
     # choices as well as cross fitting of semiparametric nuisance params.
     self.folds = folds
-    self.kf = sklearn.model_selection.StratifiedKFold(n_splits=folds,
-                                                      shuffle=True,
-                                                      random_state=708)
+    if fold_generator is None:
+      fold_generator = sklearn.model_selection.StratifiedKFold(
+          n_splits=folds, shuffle=True, random_state=708)
+    self.kf = fold_generator
     self.weight_trunc = weight_trunc
     self.orthogonal = orthogonal
     self.bootstrap_size = bootstrap_size
@@ -133,7 +135,7 @@ class SemiparametricCalibrationError(object):
     """Low bias estimate of L2 calibration error w/ smoothing, not bins."""
     est, _ = self._calculate_calibration_error_crossfit(
         probs, labels, hyperparam_range=hyperparam_range)
-    return est
+    return np.sqrt(max(est, 0))
 
   def rms_calibration_error_conf_int(self, probs, labels,
                                      hyperparam_range=None, alpha=0.05):

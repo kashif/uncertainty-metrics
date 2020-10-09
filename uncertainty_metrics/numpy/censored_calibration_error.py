@@ -410,7 +410,6 @@ class CensoredCalibrationError(object):
     local_at_risk = np.zeros((n, n_times))
 
     for train_index, test_index in self.kf.split(study_times, events):
-      print(test_index)
       train_probs, test_probs = probs[train_index], probs[test_index]
       train_study_times = study_times[train_index]
       train_events = events[train_index]
