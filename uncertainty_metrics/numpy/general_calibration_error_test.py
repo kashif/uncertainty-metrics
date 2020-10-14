@@ -106,7 +106,7 @@ class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
     cap = um.compute_all_metrics(labels, probs)
     self.assertNotEmpty(cap)
 
-  def test_correctness(self):
+  def test_correctness_ece(self):
     num_bins = 10
     pred_probs = [
         [0.31, 0.32, 0.27],
@@ -136,9 +136,43 @@ class GeneralCalibrationErrorTest(parameterized.TestCase, absltest.TestCase):
         bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
         correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
 
-    self.assertAlmostEqual(correct_ece,
-                           um.ece([int(i) for i in labels],
-                                  np.array(pred_probs)))
+    um_ece = um.ece(
+        [int(i) for i in labels], np.array(pred_probs), num_bins=num_bins)
+    self.assertAlmostEqual(correct_ece, um_ece)
+
+  def test_correctness_rmsce(self):
+    num_bins = 10
+    pred_probs = [
+        [0.31, 0.32, 0.27],
+        [0.37, 0.33, 0.30],
+        [0.30, 0.31, 0.39],
+        [0.61, 0.38, 0.01],
+        [0.10, 0.65, 0.25],
+        [0.91, 0.05, 0.04],
+    ]
+    # max_pred_probs: [0.32, 0.37, 0.39, 0.61, 0.65, 0.91]
+    # pred_class: [1, 0, 2, 0, 1, 0]
+    labels = [1., 0, 0., 1., 0., 0.]
+    n = len(pred_probs)
+
+    # Adaptive bins, so every datapoint is on its own:
+    bin_counts = [1, 0, 1, 0, 1, 1, 0, 1, 0, 1]
+    bin_correct_sums = [1, 0, 1, 0, 0, 0, 0, 0, 0, 1]
+    bin_prob_sums = [0.32, 0, 0.37, 0, 0.39, 0.61, 0, 0.65, 0, 0.91]
+
+    correct_ece = 0.
+    bin_accs = [0.] * num_bins
+    bin_confs = [0.] * num_bins
+    for i in range(num_bins):
+      if bin_counts[i] > 0:
+        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
+        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
+        correct_ece += bin_counts[i] / n * np.square(bin_accs[i] - bin_confs[i])
+
+    correct_rmsce = np.sqrt(correct_ece)
+    um_rmsce = um.rmsce(
+        [int(i) for i in labels], np.array(pred_probs), num_bins=num_bins)
+    self.assertAlmostEqual(correct_rmsce, um_rmsce)
 
   def generate_params():  # pylint: disable=no-method-argument
     # 'self' object cannot be passes to parameterized.

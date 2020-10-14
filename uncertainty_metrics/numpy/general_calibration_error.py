@@ -84,7 +84,7 @@ class GeneralCalibrationError():
 
   To implement Root Mean Squared Calibration Error [3]:
   RMSCE = GeneralCalibrationError(binning_scheme='adaptive',
-  class_conditional=True, max_prob=False, error='l2', datapoints_per_bin=100)
+  class_conditional=False, max_prob=True, error='l2', datapoints_per_bin=100)
 
   To implement Adaptive Calibration Error [1]:
   ACE = GeneralCalibrationError(binning_scheme='adaptive',
@@ -107,10 +107,10 @@ class GeneralCalibrationError():
   Twenty-Ninth AAAI Conference on Artificial Intelligence. 2015.
   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4410090/
 
-  [3] Hendrycks, Dan, Mantas Mazeika, and Thomas Dietterich.
-  "Deep anomaly detection with outlier exposure."
-  arXiv preprint arXiv:1812.04606 (2018).
-  https://arxiv.org/pdf/1812.04606.pdf
+  [3] Khanh Nguyen and Brendan O’Connor.
+  "Posterior calibration and exploratory analysis for natural language
+  processing models."  Empirical Methods in Natural Language Processing. 2015.
+  https://arxiv.org/pdf/1508.05154.pdf
 
   Attributes:
     binning_scheme: String, either 'even' (for even spacing) or 'adaptive'
@@ -183,12 +183,17 @@ class GeneralCalibrationError():
 
     self.calibration_errors = self.accuracies-self.confidences
 
-    weighting = counts / float(len(probs.flatten()))
-    weighted_calibration_error = self.calibration_errors * weighting
     if norm == 'l1':
-      return np.sum(np.abs(weighted_calibration_error))
+      calibration_errors_normed = self.calibration_errors
+    elif norm == 'l2':
+      calibration_errors_normed = np.square(self.calibration_errors)
     else:
-      return np.sum(np.square(weighted_calibration_error))
+      raise ValueError(f'Unknown norm: {norm}')
+
+    weighting = counts / float(len(probs.flatten()))
+    weighted_calibration_error = calibration_errors_normed * weighting
+
+    return np.sum(np.abs(weighted_calibration_error))
 
   def update_state(self, labels, probs):
     """Updates the value of the General Calibration Error."""
@@ -305,8 +310,8 @@ def gce(labels,
     max_prob=False, error='l1')
 
   To implement Root Mean Squared Calibration Error [3]:
-  gce(labels, probs, binning_scheme='adaptive', class_conditional=True,
-    max_prob=False, error='l2', datapoints_per_bin=100)
+  gce(labels, probs, binning_scheme='adaptive', class_conditional=False,
+    max_prob=True, error='l2', datapoints_per_bin=100)
 
   To implement Adaptive Calibration Error [1]:
   gce(labels, probs, binning_scheme='adaptive', class_conditional=True,
@@ -383,7 +388,7 @@ def ece(labels, probs, num_bins=30):
              num_bins=num_bins)
 
 
-def rmsce(labels, probs, num_bins=30, datapoints_per_bin=100):
+def rmsce(labels, probs, num_bins=30, datapoints_per_bin=None):
   """Implements Root Mean Squared Calibration Error."""
   return gce(labels,
              probs,
