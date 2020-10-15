@@ -560,8 +560,8 @@ iscv, iscv_sem = um.importance_sampling_cross_validation(logp)
 
 [13] Louizos, C. and Welling, M. Multiplicative normalizing flows for variational Bayesian neural networks. In ICML, volume 70, pp. 2218–2227, 2017. Paper Link.
 
-[14] Hendrycks, D., Mu, N., Cubuk, E. D., Zoph, B., Gilmer, J., & Lakshminarayanan, B. (2019). AugMix: A Simple Data Processing Method to Improve Robustness and Uncertainty. Paper Link.
-    
+[14] Nguyen, K. & O’Connor, B. (2015) Posterior calibration and exploratory analysis for natural language processing models.  Empirical Methods in Natural Language Processing. [(PDF)](https://arxiv.org/pdf/1508.05154.pdf)
+
 [15] _Jochen Brocker_, "Reliability, sufficiency, and the decomposition of
 proper scores", Quarterly Journal of the Royal Meteorological Society, 2009.
 [(PDF)](https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/qj.456)

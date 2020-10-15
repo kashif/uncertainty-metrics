@@ -334,10 +334,10 @@ def gce(labels,
   Twenty-Ninth AAAI Conference on Artificial Intelligence. 2015.
   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4410090/
 
-  [3] Hendrycks, Dan, Mantas Mazeika, and Thomas Dietterich.
-  "Deep anomaly detection with outlier exposure."
-  arXiv preprint arXiv:1812.04606 (2018).
-  https://arxiv.org/pdf/1812.04606.pdf
+  [3] Khanh Nguyen and Brendan O’Connor.
+  "Posterior calibration and exploratory analysis for natural language
+  processing models."  Empirical Methods in Natural Language Processing. 2015.
+  https://arxiv.org/pdf/1508.05154.pdf
 
   Args:
     labels: np.ndarray of shape [N, ] array of correct labels.
