@@ -125,6 +125,7 @@ class CensoredCalibrationError(object):
     self.survival_aggregation = survival_aggregation
     self.kernel_fn = kernel_fn
     self.num_repeats = num_repeats
+    self.dist_hash = dict()
 
     if default_hyperparam_range is None:
       # Use reasonable default hyperparam ranges validated in simulation. These
@@ -290,9 +291,17 @@ class CensoredCalibrationError(object):
 
     if hyperparam_range is None:
       scale_lower, scale_upper = self.default_hyperparam_range
-      hyperparam_range = 1.0 / (np.linspace(
-          scale_lower * probs.shape[0] + 1, scale_upper * probs.shape[0],
-          self.hyperparam_attempts) / (np.max(probs) - np.min(probs)))**2
+      if self.kernel_fn == 'knn':
+        hyperparam_range = np.linspace(
+            scale_lower * probs.shape[0] + 5, scale_upper * probs.shape[0] + 5,
+            self.hyperparam_attempts)
+      else:
+        hyperparam_range = 1.0 / (np.linspace(
+            scale_lower * probs.shape[0] + 1, scale_upper * probs.shape[0],
+            self.hyperparam_attempts) / (np.max(probs) - np.min(probs)))
+
+    hyperparam = self._get_undersmoothed_hyperparam(probs, study_times, events,
+                                                    hyperparam_range)
 
     # Because of the IPCW weights, it's important to run cross-fitting
     # multiple times and take the median.
@@ -300,8 +309,8 @@ class CensoredCalibrationError(object):
       random_state = self.kf.random_state
       self.kf.random_state = random_state + random_state_adjustment
       local_outcome_process, local_censoring_process, local_at_risk = \
-          self._calculate_opt_cross_fit_processes(
-              probs, study_times, events, hyperparam_range)
+          self._calculate_cross_fit_processes(probs, study_times, events,
+                                              hyperparam)
       self.kf.random_state = random_state
       return self._calculate_calibration_error(probs, study_times, events,
                                                local_outcome_process,
@@ -331,6 +340,13 @@ class CensoredCalibrationError(object):
       raise 'Unsupported survival function aggregation "{}"'.format(
           self.survival_aggregation)
 
+  def _get_dists(self, train_probs, test_probs):
+    key = (hash(train_probs.data.tobytes()), hash(test_probs.data.tobytes()))
+    if key not in self.dist_hash:
+      self.dist_hash[key] = np.abs(train_probs[np.newaxis, :] -
+                                   test_probs[:, np.newaxis])
+    return self.dist_hash[key]
+
   def _calculate_local_processes(
       self, train_probs, train_time, train_event, times, test_probs,
       bandwidth=1):
@@ -344,13 +360,21 @@ class CensoredCalibrationError(object):
     outcome_process = at_risk * train_event[:, np.newaxis]
     censoring_process = at_risk * (1-train_event)[:, np.newaxis]
 
-    dists = np.abs(
-        train_probs[np.newaxis, :] - test_probs[:, np.newaxis]) / bandwidth
+    dists = self._get_dists(train_probs, test_probs) / bandwidth
     if self.kernel_fn == 'cubic':
       kernel = 15 * (1 - dists ** 2) ** 3 / 16
       kernel[dists > 1] = 0
     elif self.kernel_fn == 'rbf':
       kernel = np.exp(-dists ** 2)
+    elif self.kernel_fn == 'knn':
+      def _find_neighbors(v):
+        locs = np.argpartition(v, int(bandwidth)-1)[:int(bandwidth)]
+        vals = np.zeros(v.shape[0])
+        vals[locs] = 1
+        return vals
+
+      kernel = np.array(
+          [_find_neighbors(dists[i, :]) for i in range(dists.shape[0])])
     else:
       raise 'Kernel {} not supported'.format(self.kernel_fn)
 
