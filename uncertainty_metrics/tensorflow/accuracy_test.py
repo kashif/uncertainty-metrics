@@ -36,8 +36,11 @@ class OracleCollaborativeAccuracyTest(parameterized.TestCase, tf.test.TestCase):
     bin_correct_sums = np.array([0, 0, 0, 0, 0, 1, 2, 0, 2, 0])
     bin_prob_sums = np.array(
         [0, 0, 0, 0, 0, 0.51 + 0.55, 0.61 + 0.66 + 0.68, 0.71, 0.81 + 0.85, 0])
+    # `(3 - 1)` refers to the rest examples in this bin
+    # (minus the examples sent to the moderators), while `2/3` is
+    # the accuracy in this bin.
     bin_collab_correct_sums = np.array(
-        [0, 0, 0, 0, 0, 2, 1 * 1.0 + (3 - 1) * 0.7, 0, 2, 0])
+        [0, 0, 0, 0, 0, 2, 1 * 1.0 + (3 - 1) * (2 / 3), 0, 2, 0])
 
     correct_acc = np.sum(bin_collab_correct_sums) / np.sum(bin_counts)
 

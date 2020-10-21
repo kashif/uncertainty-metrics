@@ -91,7 +91,7 @@ class OracleCollaborativeAccuracy(calibration.ExpectedCalibrationError):
       elif num_oracle_examples_so_far < num_oracle_examples:
         # Send num_correct_oracle examples in the current bin to oracle,
         # and have model to predict the rest.
-        cur_bin_accuracy = _bin_probabilities(self.num_bins, i, self.dtype)
+        cur_bin_accuracy = cur_bin_num_correct / cur_bin_counts
         num_correct_oracle = tf.cast(
             num_oracle_examples - num_oracle_examples_so_far, self.dtype)
         num_correct_model = (cur_bin_counts -
