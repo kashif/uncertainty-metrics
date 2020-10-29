@@ -85,7 +85,11 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
     self.counts = self.add_weight(
         "counts", shape=(num_bins,), initializer=tf.zeros_initializer)
 
-  def update_state(self, labels, probabilities, **kwargs):
+  def update_state(self,
+                   labels,
+                   probabilities,
+                   custom_binning_score=None,
+                   **kwargs):
     """Updates this metric.
 
     This will flatten the labels and probabilities, and then compute the ECE
@@ -96,15 +100,22 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
       probabilities: Tensor of shape [..., ], [..., 1] or [..., k] of normalized
         probabilities associated with the True class in the binary case, or with
         each of k classes in the multiclass case.
+      custom_binning_score: Tensor of shape [..., ] matching the first dimension
+        of probabilities used for binning predictions. If not set, the default
+        is to bin by predicted probability. The elements of custom_binning_score
+        are expected to all be in [0, 1].
       **kwargs: Other potential keywords, which will be ignored by this method.
     """
     del kwargs  # unused
     labels = tf.convert_to_tensor(labels)
     probabilities = tf.cast(probabilities, self.dtype)
 
-    # Flatten labels to [N, ] and probabilities to [N, 1] or [N, k].
+    # Flatten labels and custom_binning_score to [N, ].
     if tf.rank(labels) != 1:
       labels = tf.reshape(labels, [-1])
+    if custom_binning_score is not None and tf.rank(custom_binning_score) != 1:
+      custom_binning_score = tf.reshape(custom_binning_score, [-1])
+    # Flatten probabilities to [N, 1] or [N, k].
     if tf.rank(probabilities) != 2 or (tf.shape(probabilities)[0] !=
                                        tf.shape(labels)[0]):
       probabilities = tf.reshape(probabilities, [tf.shape(labels)[0], -1])
@@ -124,8 +135,14 @@ class ExpectedCalibrationError(tf.keras.metrics.Metric):
                                   tf.cast(labels, pred_labels.dtype))
     correct_preds = tf.cast(correct_preds, self.dtype)
 
+    # Bin by pred_probs if a separate custom_binning_score was not set.
+    if custom_binning_score is None:
+      custom_binning_score = pred_probs
+
     bin_indices = tf.histogram_fixed_width_bins(
-        pred_probs, tf.constant([0., 1.], self.dtype), nbins=self.num_bins)
+        custom_binning_score,
+        tf.constant([0., 1.], self.dtype),
+        nbins=self.num_bins)
     batch_correct_sums = tf.math.unsorted_segment_sum(
         data=tf.cast(correct_preds, self.dtype),
         segment_ids=bin_indices,
@@ -366,4 +383,3 @@ def bayesian_expected_calibration_error(num_bins, logits=None,
                     post_pmean.sample()) for _ in range(num_ece_samples)])
 
   return ece_samples
-

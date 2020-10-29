@@ -139,6 +139,76 @@ class CalibrationTest(parameterized.TestCase, tf.test.TestCase):
     self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
     self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
 
+  def testECEBinaryClassificationBinningRule(self):
+    num_bins = 10
+    pred_probs = np.array([0.51, 0.45, 0.39, 0.66, 0.68, 0.29, 0.81, 0.85])
+    # max_pred_probs: [0.51, 0.55, 0.61, 0.66, 0.68, 0.71, 0.81, 0.85]
+    # pred_class: [1, 0, 0, 1, 1, 0, 1, 1]
+    labels = np.array([0., 0., 0., 1., 0., 1., 1., 1.])
+    n = len(pred_probs)
+
+    custom_binning_score = np.array(
+        [0.05, 0.11, 0.37, 0.52, 0.26, 0.47, 0.73, 0.23])
+    # Bins for the max predicted probabilities are (0, 0.1), [0.1, 0.2), ...,
+    # [0.9, 1) and are numbered starting at zero.
+    bin_counts = np.array([1, 1, 2, 1, 1, 1, 0, 1, 0, 0])
+    # pred_probs is correct at indices 1, 2, 3, 6, and 7.
+    bin_correct_sums = np.array([0, 1, 1, 1, 0, 1, 0, 1, 0, 0])
+    bin_prob_sums = np.array(
+        [0.51, 1 - 0.45, 0.68 + 0.85, 1 - 0.39, 1 - 0.29, 0.66, 0, 0.81, 0, 0])
+
+    correct_ece = 0.
+    bin_accs = np.array([0.] * num_bins)
+    bin_confs = np.array([0.] * num_bins)
+    for i in range(num_bins):
+      if bin_counts[i] > 0:
+        bin_accs[i] = bin_correct_sums[i] / bin_counts[i]
+        bin_confs[i] = bin_prob_sums[i] / bin_counts[i]
+        correct_ece += bin_counts[i] / n * abs(bin_accs[i] - bin_confs[i])
+
+    metric = um.ExpectedCalibrationError(
+        num_bins, name='RebinnedECE', dtype=tf.float64)
+    self.assertLen(metric.variables, 3)
+
+    ece1 = metric(labels, pred_probs, custom_binning_score=custom_binning_score)
+    self.assertAllClose(ece1, correct_ece)
+
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
+    self.assertAllEqual(bin_counts, actual_bin_counts)
+    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
+    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+
+    # Test various types of input shapes.
+    metric.reset_states()
+    metric.update_state(
+        labels[:1],
+        pred_probs[:1],
+        custom_binning_score=custom_binning_score[:1])
+    metric.update_state(
+        labels[1:5].reshape(2, 2),
+        pred_probs[1:5].reshape(2, 2),
+        custom_binning_score=custom_binning_score[1:5].reshape(2, 2))
+    metric.update_state(
+        labels[5:7],
+        pred_probs[5:7],
+        custom_binning_score=custom_binning_score[5:7])
+    ece2 = metric(
+        labels[7:, np.newaxis],
+        pred_probs[7:, np.newaxis],
+        custom_binning_score=custom_binning_score[7:, np.newaxis])
+    ece3 = metric.result()
+    self.assertAllClose(ece2, ece3)
+    self.assertAllClose(ece3, correct_ece)
+
+    actual_bin_counts = tf.convert_to_tensor(metric.counts)
+    actual_bin_correct_sums = tf.convert_to_tensor(metric.correct_sums)
+    actual_bin_prob_sums = tf.convert_to_tensor(metric.prob_sums)
+    self.assertAllEqual(bin_counts, actual_bin_counts)
+    self.assertAllEqual(bin_correct_sums, actual_bin_correct_sums)
+    self.assertAllClose(bin_prob_sums, actual_bin_prob_sums)
+
   def testECEBinaryClassificationKerasModel(self):
     num_bins = 10
     pred_probs = np.array([0.51, 0.45, 0.39, 0.66, 0.68, 0.29, 0.81, 0.85])
